@@ -13,34 +13,35 @@ interface Participant {
   createdAt: string;
 }
 
-// Daftar seksi yang tersedia (sesuaikan dengan struktur organisasi)
-const SECTIONS = [
-  "Seksi Produksi A", "Seksi Produksi B", "Seksi Produksi C",
-  "Seksi Quality Control", "Seksi Maintenance", "Seksi Engineering",
-  "Seksi Logistics", "Seksi PPIC", "Seksi HR & GA",
-  "Seksi Finance", "Seksi IT", "Seksi Safety",
-  "Seksi Purchasing", "Seksi Marketing", "Lainnya",
-];
+
 
 export default function AdminPesertaPage() {
   const [participants, setParticipants] = useState<Participant[]>([]);
+  const [dbSections, setDbSections] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterSection, setFilterSection] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [isBulk, setIsBulk] = useState(false);
   const [form, setForm] = useState({ name: "", npk: "", section: "" });
+  const [bulkText, setBulkText] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const fetchParticipants = async () => {
+  const fetchData = async () => {
     try {
-      const res = await fetch("/api/participants");
-      const data = await res.json();
-      setParticipants(Array.isArray(data) ? data : []);
+      const [resParts, resSecs] = await Promise.all([
+        fetch("/api/participants"),
+        fetch("/api/sections")
+      ]);
+      const dataParts = await resParts.json();
+      const dataSecs = await resSecs.json();
+      setParticipants(Array.isArray(dataParts) ? dataParts : []);
+      setDbSections(Array.isArray(dataSecs) ? dataSecs : []);
     } catch { toast.error("Gagal memuat data"); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchParticipants(); }, []);
+  useEffect(() => { fetchData(); }, []);
 
   const sections = [...new Set(participants.map(p => p.section).filter(Boolean))] as string[];
 
@@ -53,20 +54,42 @@ export default function AdminPesertaPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim()) return toast.error("Nama wajib diisi");
     setSaving(true);
+    
     try {
-      const res = await fetch("/api/participants", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      if (!res.ok) throw new Error();
-      toast.success("Peserta berhasil ditambahkan!");
+      if (isBulk) {
+        if (!bulkText.trim()) throw new Error("Data bulk kosong");
+        const rows = bulkText.trim().split("\n");
+        let successCount = 0;
+        
+        for (const row of rows) {
+          const [name, npk, section] = row.split("\t").map(s => s?.trim());
+          if (!name) continue;
+          
+          await fetch("/api/participants", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, npk: npk || "", section: section || "" }),
+          });
+          successCount++;
+        }
+        toast.success(`${successCount} peserta berhasil ditambahkan!`);
+      } else {
+        if (!form.name.trim()) throw new Error("Nama wajib diisi");
+        const res = await fetch("/api/participants", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        });
+        if (!res.ok) throw new Error();
+        toast.success("Peserta berhasil ditambahkan!");
+      }
+      
       setShowForm(false);
       setForm({ name: "", npk: "", section: "" });
-      fetchParticipants();
-    } catch { toast.error("Gagal menyimpan"); }
+      setBulkText("");
+      fetchData();
+    } catch (e: any) { toast.error(e.message || "Gagal menyimpan"); }
     finally { setSaving(false); }
   };
 
@@ -122,52 +145,86 @@ export default function AdminPesertaPage() {
       {/* Form */}
       {showForm && (
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="neu-card p-6">
-          <h2 className="text-[#1C1917] font-black text-lg mb-4 border-b-[3px] border-[#1C1917] pb-3">➕ Tambah Peserta Baru</h2>
-          <p className="text-black text-sm mb-4">Setiap peserta mewakili seksinya. Bisa berpartisipasi di lomba individual, duo, atau tim.</p>
-          <form onSubmit={handleSubmit} className="grid sm:grid-cols-3 gap-4">
-            {/* Nama */}
-            <div>
-              <label className="block text-[#1C1917] text-xs font-black mb-1.5 uppercase tracking-wider">Nama Lengkap *</label>
-              <input
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="Contoh: Budi Santoso"
-                required
-                className="neu-input"
-              />
-            </div>
-
-            {/* NPK */}
-            <div>
-              <label className="block text-[#1C1917] text-xs font-black mb-1.5 uppercase tracking-wider">NPK</label>
-              <input
-                value={form.npk}
-                onChange={(e) => setForm({ ...form, npk: e.target.value })}
-                placeholder="Contoh: 12345"
-                className="neu-input"
-              />
-              <p className="text-black text-xs mt-1">Nomor Pokok Karyawan</p>
-            </div>
-
-            {/* Seksi */}
-            <div>
-              <label className="block text-[#1C1917] text-xs font-black mb-1.5 uppercase tracking-wider">Asal Seksi *</label>
-              <select
-                value={form.section}
-                onChange={(e) => setForm({ ...form, section: e.target.value })}
-                required
-                className="neu-input"
+          <div className="flex justify-between items-center mb-4 border-b-[3px] border-[#1C1917] pb-3">
+            <h2 className="text-[#1C1917] font-black text-lg">➕ Tambah Peserta Baru</h2>
+            <div className="flex bg-[#F5F5F4] p-1 rounded-[6px] border-2 border-[#1C1917]">
+              <button
+                type="button"
+                onClick={() => setIsBulk(false)}
+                className={`px-3 py-1 text-xs font-bold rounded-[4px] ${!isBulk ? "bg-white border-2 border-[#1C1917] shadow-[1px_1px_0_#1C1917]" : "text-gray-500 hover:text-black"}`}
               >
-                <option value="">-- Pilih Seksi --</option>
-                {SECTIONS.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
+                Manual
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsBulk(true)}
+                className={`px-3 py-1 text-xs font-bold rounded-[4px] ${isBulk ? "bg-white border-2 border-[#1C1917] shadow-[1px_1px_0_#1C1917]" : "text-gray-500 hover:text-black"}`}
+              >
+                Bulk (Excel)
+              </button>
             </div>
+          </div>
+          
+          <form onSubmit={handleSubmit} className="grid sm:grid-cols-3 gap-4">
+            {isBulk ? (
+              <div className="col-span-3">
+                <label className="block text-[#1C1917] text-xs font-black mb-1.5 uppercase tracking-wider">Paste Data dari Excel (Copy-Paste)</label>
+                <p className="text-xs text-gray-600 mb-2 font-medium">Format kolom (tanpa header): <strong>Nama Lengkap [TAB] NPK [TAB] Asal Seksi</strong></p>
+                <textarea
+                  value={bulkText}
+                  onChange={(e) => setBulkText(e.target.value)}
+                  placeholder="Budi Santoso&#9;12345&#9;Seksi Produksi A&#10;Siti Aminah&#9;67890&#9;Seksi Finance"
+                  className="neu-input font-mono text-sm min-h-[150px] whitespace-pre"
+                  required
+                />
+              </div>
+            ) : (
+              <>
+                {/* Nama */}
+                <div>
+                  <label className="block text-[#1C1917] text-xs font-black mb-1.5 uppercase tracking-wider">Nama Lengkap *</label>
+                  <input
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    placeholder="Contoh: Budi Santoso"
+                    required
+                    className="neu-input"
+                  />
+                </div>
 
-            <div className="sm:col-span-3 flex gap-3">
+                {/* NPK */}
+                <div>
+                  <label className="block text-[#1C1917] text-xs font-black mb-1.5 uppercase tracking-wider">NPK</label>
+                  <input
+                    value={form.npk}
+                    onChange={(e) => setForm({ ...form, npk: e.target.value })}
+                    placeholder="Contoh: 12345"
+                    className="neu-input"
+                  />
+                  <p className="text-black text-xs mt-1">Nomor Pokok Karyawan</p>
+                </div>
+
+                {/* Seksi */}
+                <div>
+                  <label className="block text-[#1C1917] text-xs font-black mb-1.5 uppercase tracking-wider">Asal Seksi *</label>
+                  <select
+                    value={form.section}
+                    onChange={(e) => setForm({ ...form, section: e.target.value })}
+                    required
+                    className="neu-input"
+                  >
+                    <option value="">-- Pilih Seksi --</option>
+                    {dbSections.map((s) => (
+                      <option key={s.id} value={s.name}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+
+            <div className="sm:col-span-3 flex gap-3 mt-2">
               <button type="submit" disabled={saving} className="btn-neon px-6 py-2.5 text-sm disabled:opacity-50">
-                {saving ? "Menyimpan..." : "Tambah Peserta"}
+                {saving ? "Menyimpan..." : isBulk ? "Simpan Semua" : "Tambah Peserta"}
               </button>
               <button type="button" onClick={() => setShowForm(false)} className="neu-btn neu-btn-white px-6 py-2.5 text-sm">
                 Batal
