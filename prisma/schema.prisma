@@ -1,0 +1,332 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ===========================
+// EVENT
+// ===========================
+model Event {
+  id          String   @id @default(cuid())
+  name        String   @default("BONDING EVENT 2026")
+  slug        String   @unique @default("bonding-event-2026")
+  description String?
+  logoUrl     String?
+  bannerUrl   String?
+  startDate   DateTime
+  endDate     DateTime
+  location    String?
+  status      String   @default("UPCOMING") // UPCOMING, ONGOING, COMPLETED
+  themeColor  String   @default("#0891B2")
+  pointSystem String   @default("{\"first\":100,\"second\":75,\"third\":50}") // JSON
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  competitions     Competition[]
+  participants     Participant[]
+  announcements    Announcement[]
+  media            Media[]
+  sponsors         Sponsor[]
+  overallStandings OverallStanding[]
+  sections         Section[]
+}
+
+// ===========================
+// SECTION (Seksi / Kelompok)
+// ===========================
+model Section {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name      String
+  color     String   @default("#0891B2")
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, name])
+}
+
+// ===========================
+// COMPETITION (Setiap lomba)
+// ===========================
+model Competition {
+  id          String   @id @default(cuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name        String
+  slug        String
+  description String?
+  logoUrl     String?
+  bannerUrl   String?
+  status      String   @default("UPCOMING") // UPCOMING, REGISTRATION, ONGOING, COMPLETED
+  type        String   @default("INDIVIDUAL") // INDIVIDUAL, DUO, TEAM
+  format      String   @default("BRACKET") // BRACKET, GROUP_STAGE, TIME_TRIAL
+  category    String?
+  maxParticipants Int?
+  registrationDeadline DateTime?
+  rules       String?
+  venue       String?
+  order       Int      @default(0)
+  // Format-specific config (JSON)
+  // BRACKET: {"bracketSize":8,"thirdPlace":true,"bestOf":1}
+  // GROUP_STAGE: {"numGroups":2,"teamsPerGroup":4,"advanceCount":2,"pointsWin":3,"pointsDraw":1,"pointsLoss":0}
+  // TIME_TRIAL: {"scoreUnit":"menit","sortOrder":"ASC","bestOf":1}
+  config      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  teams               Team[]
+  matches             Match[]
+  rankings            Ranking[]
+  champions           Champion[]
+  compParticipants    CompetitionParticipant[]
+  media               Media[]
+  announcements       Announcement[]
+
+  @@unique([eventId, slug])
+}
+
+// ===========================
+// PARTICIPANT (Peserta — selalu mewakili 1 seksi)
+// ===========================
+model Participant {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name      String           // Nama lengkap
+  npk       String?          // Nomor Pokok Karyawan
+  section   String?          // Asal Seksi / Kelompok
+  createdAt DateTime @default(now())
+
+  teamMembers       TeamMember[]
+  compParticipants  CompetitionParticipant[]
+  matchParticipants MatchParticipant[]
+  rankings          Ranking[]
+  champions         Champion[]
+}
+
+// ===========================
+// TEAM (Tim / Duo dalam lomba)
+// ===========================
+model Team {
+  id              String   @id @default(cuid())
+  competitionId   String
+  competition     Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  name            String
+  section         String?  // Seksi utama yang diwakili
+  logoUrl         String?
+  status          String   @default("ACTIVE") // ACTIVE, ELIMINATED, WINNER
+  seedNumber      Int?
+  groupName       String?  // Untuk format GROUP_STAGE (Grup A, B, ...)
+  // Collaboration fields
+  isCollaboration Boolean  @default(false)
+  sections        String?  // JSON array: ["Seksi IT","Seksi HR"]
+  sectionWeights  String?  // JSON object: {"Seksi IT":60,"Seksi HR":40}
+  createdAt       DateTime @default(now())
+
+  members           TeamMember[]
+  matchParticipants MatchParticipant[]
+  rankings          Ranking[]
+  champions         Champion[]
+}
+
+// ===========================
+// TEAM MEMBER
+// ===========================
+model TeamMember {
+  id            String   @id @default(cuid())
+  teamId        String
+  team          Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  role          String   @default("MEMBER") // CAPTAIN, MEMBER
+
+  @@unique([teamId, participantId])
+}
+
+// ===========================
+// COMPETITION PARTICIPANT
+// ===========================
+model CompetitionParticipant {
+  id            String   @id @default(cuid())
+  competitionId String
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  teamId        String?
+  seedNumber    String?
+  status        String   @default("REGISTERED")
+
+  @@unique([competitionId, participantId])
+}
+
+// ===========================
+// MATCH (Pertandingan)
+// ===========================
+model Match {
+  id            String   @id @default(cuid())
+  competitionId String
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  name          String
+  round         String?
+  stage         String   @default("REGULAR") // REGULAR, KNOCKOUT, SEMIFINAL, FINAL, THIRD_PLACE
+  groupName     String?  // Untuk GROUP_STAGE
+  bracketSlot   Int?     // Posisi di bracket (1-based)
+  scheduledAt   DateTime?
+  completedAt   DateTime?
+  venue         String?
+  status        String   @default("SCHEDULED") // SCHEDULED, ONGOING, COMPLETED, CANCELLED
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  participants  MatchParticipant[]
+}
+
+// ===========================
+// MATCH PARTICIPANT (Skor)
+// ===========================
+model MatchParticipant {
+  id            String   @id @default(cuid())
+  matchId       String
+  match         Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  teamId        String?
+  team          Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  participantId String?
+  participant   Participant? @relation(fields: [participantId], references: [id], onDelete: SetNull)
+  score         Float    @default(0)  // Float untuk time trial (detik / nilai)
+  result        String?  // WIN, LOSE, DRAW
+  timeResult    String?  // Untuk TIME_TRIAL: "01:23.45"
+  details       String?  // JSON
+}
+
+// ===========================
+// RANKING (Per lomba)
+// ===========================
+model Ranking {
+  id            String   @id @default(cuid())
+  competitionId String
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  teamId        String?
+  team          Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  participantId String?
+  participant   Participant? @relation(fields: [participantId], references: [id], onDelete: SetNull)
+  position      Int
+  points        Float    @default(0)
+  wins          Int      @default(0)
+  losses        Int      @default(0)
+  draws         Int      @default(0)
+  goalsFor      Int      @default(0)
+  goalsAgainst  Int      @default(0)
+  bestTime      String?  // Untuk TIME_TRIAL
+  bestScore     Float?   // Untuk TIME_TRIAL
+  updatedAt     DateTime @updatedAt
+}
+
+// ===========================
+// CHAMPION (Juara per lomba)
+// ===========================
+model Champion {
+  id            String   @id @default(cuid())
+  competitionId String
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  teamId        String?
+  team          Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  participantId String?
+  participant   Participant? @relation(fields: [participantId], references: [id], onDelete: SetNull)
+  position      Int
+  awardPoints   Int      @default(0)
+  section       String?  // Seksi pemenang (untuk individual/duo)
+  awardedAt     DateTime @default(now())
+}
+
+// ===========================
+// OVERALL STANDING (Juara Umum per Seksi)
+// ===========================
+model OverallStanding {
+  id          String   @id @default(cuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  section     String   // Nama seksi
+  totalPoints Float    @default(0)  // Float karena split poin kolaborasi
+  goldCount   Int      @default(0)
+  silverCount Int      @default(0)
+  bronzeCount Int      @default(0)
+  rank        Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  @@unique([eventId, section])
+}
+
+// ===========================
+// ANNOUNCEMENT
+// ===========================
+model Announcement {
+  id            String   @id @default(cuid())
+  eventId       String
+  event         Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  competitionId String?
+  competition   Competition? @relation(fields: [competitionId], references: [id], onDelete: SetNull)
+  title         String
+  content       String
+  type          String   @default("INFO")
+  priority      String   @default("NORMAL")
+  isPinned      Boolean  @default(false)
+  isRunningText Boolean  @default(false)
+  isPublished   Boolean  @default(true)
+  publishedAt   DateTime @default(now())
+  expiresAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ===========================
+// MEDIA
+// ===========================
+model Media {
+  id            String   @id @default(cuid())
+  eventId       String
+  event         Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  competitionId String?
+  competition   Competition? @relation(fields: [competitionId], references: [id], onDelete: SetNull)
+  title         String?
+  url           String
+  thumbnailUrl  String?
+  type          String   @default("IMAGE")
+  altText       String?
+  order         Int      @default(0)
+  createdAt     DateTime @default(now())
+}
+
+// ===========================
+// SPONSOR
+// ===========================
+model Sponsor {
+  id         String   @id @default(cuid())
+  eventId    String
+  event      Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name       String
+  logoUrl    String?
+  websiteUrl String?
+  tier       String   @default("REGULAR")
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+}
+
+// ===========================
+// ADMIN USER
+// ===========================
+model AdminUser {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   @default("ADMIN")
+  isActive     Boolean  @default(true)
+  lastLogin    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

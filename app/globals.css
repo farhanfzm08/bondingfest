@@ -1,0 +1,457 @@
+@import "tailwindcss";
+
+/* ============================================
+   NEUBRUTALISM BEACH — BONDING FEST 2026
+   Palette: Clean white + beach colors
+   ============================================ */
+
+@layer base {
+  :root {
+    /* Beach Color Palette */
+    --neu-bg: #FFFDF5;            /* Warm sand white */
+    --neu-card: #FFFFFF;
+    --neu-ocean: #0891B2;         /* Deep ocean blue */
+    --neu-sky: #22D3EE;           /* Sky/shallow water */
+    --neu-coral: #F97316;         /* Coral/sunset orange */
+    --neu-seafoam: #10B981;       /* Seafoam green */
+    --neu-sand: #F59E0B;          /* Sandy yellow */
+    --neu-lavender: #8B5CF6;      /* Dusk purple */
+    --neu-dark: #000000;          /* Near-black (border + text) */
+    --neu-gray: #000000;          /* Warm gray */
+    --neu-light: #FEF3C7;         /* Light sand */
+
+    /* Neubrutalism specifics */
+    --neu-border: 2.5px solid #1C1917;
+    --neu-border-thick: 3.5px solid #1C1917;
+    --neu-shadow: 4px 4px 0px #1C1917;
+    --neu-shadow-sm: 2px 2px 0px #1C1917;
+    --neu-shadow-lg: 6px 6px 0px #1C1917;
+    --neu-shadow-ocean: 4px 4px 0px #0891B2;
+    --neu-shadow-coral: 4px 4px 0px #F97316;
+    --neu-shadow-seafoam: 4px 4px 0px #10B981;
+    --neu-radius: 6px;
+
+    /* Legacy token compat */
+    --color-bg: var(--neu-bg);
+    --color-surface: #FFFFFF;
+    --color-surface-2: #FEF9EE;
+    --color-surface-3: #FEF3C7;
+    --color-border: #000000;
+    --color-text: #000000;
+    --color-text-muted: #000000;
+    --brand-primary: #0891B2;
+    --gradient-brand: linear-gradient(135deg, #0891B2 0%, #10B981 100%);
+  }
+
+  * {
+    border-color: #1C1917;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--neu-bg);
+    color: var(--neu-dark);
+    font-family: var(--font-inter), "Inter", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #FEF3C7; }
+  ::-webkit-scrollbar-thumb { background: #0891B2; border-radius: 0; }
+  ::-webkit-scrollbar-thumb:hover { background: #0E7490; }
+}
+
+/* ============================================
+   NEUBRUTALISM CORE UTILITIES
+   ============================================ */
+
+/* Cards */
+.neu-card {
+  background: #FFFFFF;
+  border: var(--neu-border);
+  box-shadow: var(--neu-shadow);
+  border-radius: var(--neu-radius);
+}
+
+.neu-card-ocean {
+  background: #ECFEFF;
+  border: var(--neu-border);
+  box-shadow: var(--neu-shadow-ocean);
+  border-radius: var(--neu-radius);
+}
+
+.neu-card-coral {
+  background: #FFF7ED;
+  border: var(--neu-border);
+  box-shadow: var(--neu-shadow-coral);
+  border-radius: var(--neu-radius);
+}
+
+.neu-card-seafoam {
+  background: #ECFDF5;
+  border: var(--neu-border);
+  box-shadow: var(--neu-shadow-seafoam);
+  border-radius: var(--neu-radius);
+}
+
+.neu-card-sand {
+  background: #FFFBEB;
+  border: var(--neu-border);
+  box-shadow: 4px 4px 0px #F59E0B;
+  border-radius: var(--neu-radius);
+}
+
+/* Buttons */
+.neu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: var(--neu-border-thick);
+  border-radius: var(--neu-radius);
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.08s ease;
+  box-shadow: var(--neu-shadow);
+  text-decoration: none;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+
+.neu-btn:hover {
+  box-shadow: 2px 2px 0px #1C1917;
+  transform: translate(2px, 2px);
+}
+
+.neu-btn:active {
+  box-shadow: none;
+  transform: translate(4px, 4px);
+}
+
+.neu-btn-primary {
+  background: var(--neu-ocean);
+  color: #FFFFFF;
+}
+
+.neu-btn-coral {
+  background: var(--neu-coral);
+  color: #FFFFFF;
+}
+
+.neu-btn-seafoam {
+  background: var(--neu-seafoam);
+  color: #FFFFFF;
+}
+
+.neu-btn-sand {
+  background: var(--neu-sand);
+  color: var(--neu-dark);
+}
+
+.neu-btn-white {
+  background: #FFFFFF;
+  color: var(--neu-dark);
+}
+
+.neu-btn-dark {
+  background: var(--neu-dark);
+  color: #FFFFFF;
+}
+
+/* Legacy compat */
+.btn-neon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--neu-ocean);
+  color: white;
+  border: var(--neu-border-thick);
+  border-radius: var(--neu-radius);
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.08s ease;
+  box-shadow: var(--neu-shadow);
+  padding: 10px 20px;
+}
+
+.btn-neon:hover {
+  box-shadow: 2px 2px 0px #1C1917;
+  transform: translate(2px, 2px);
+}
+
+.btn-neon:active {
+  box-shadow: none;
+  transform: translate(4px, 4px);
+}
+
+/* Inputs */
+.neu-input {
+  background: #FFFFFF;
+  border: var(--neu-border);
+  border-radius: var(--neu-radius);
+  padding: 10px 14px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--neu-dark);
+  width: 100%;
+  transition: box-shadow 0.08s ease;
+  outline: none;
+}
+
+.neu-input:focus {
+  box-shadow: 3px 3px 0px var(--neu-ocean);
+  border-color: var(--neu-ocean);
+}
+
+.neu-input::placeholder {
+  color: #A8A29E;
+  font-weight: 400;
+}
+
+/* Legacy glass compat → now neu-card */
+.glass {
+  background: #FFFFFF;
+  border: var(--neu-border);
+  box-shadow: var(--neu-shadow);
+  border-radius: var(--neu-radius);
+}
+
+.glass-strong {
+  background: #FFFBEB;
+  border: var(--neu-border-thick);
+  box-shadow: var(--neu-shadow-lg);
+  border-radius: var(--neu-radius);
+}
+
+/* Badges */
+.neu-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 2px solid var(--neu-dark);
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.neu-badge-ocean  { background: #ECFEFF; color: #0E7490; }
+.neu-badge-coral  { background: #FFF7ED; color: #C2410C; }
+.neu-badge-seafoam { background: #ECFDF5; color: #065F46; }
+.neu-badge-sand   { background: #FFFBEB; color: #92400E; }
+.neu-badge-dark   { background: var(--neu-dark); color: #FFF; }
+
+/* ============================================
+   GRADIENT TEXT (beach version)
+   ============================================ */
+.gradient-text {
+  background: linear-gradient(135deg, #0891B2 0%, #10B981 60%, #F97316 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-gold {
+  background: linear-gradient(135deg, #F59E0B 0%, #F97316 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ============================================
+   SECTIONS & LAYOUT
+   ============================================ */
+
+.section-header {
+  border-left: 5px solid var(--neu-ocean);
+  padding-left: 16px;
+}
+
+.divider-neu {
+  height: 3px;
+  background: var(--neu-dark);
+  border-radius: 2px;
+}
+
+/* ============================================
+   STATUS BADGES (neu style)
+   ============================================ */
+.status-upcoming  { display: inline-flex; align-items: center; border: 2px solid #1C1917; border-radius: 4px; padding: 2px 10px; font-size: 0.7rem; font-weight: 800; background: #EFF6FF; color: #1D4ED8; text-transform: uppercase; letter-spacing: 0.04em; }
+.status-ongoing   { display: inline-flex; align-items: center; border: 2px solid #1C1917; border-radius: 4px; padding: 2px 10px; font-size: 0.7rem; font-weight: 800; background: #ECFDF5; color: #065F46; text-transform: uppercase; letter-spacing: 0.04em; }
+.status-completed { display: inline-flex; align-items: center; border: 2px solid #1C1917; border-radius: 4px; padding: 2px 10px; font-size: 0.7rem; font-weight: 800; background: #F5F5F4; color: #57534E; text-transform: uppercase; letter-spacing: 0.04em; }
+.status-cancelled { display: inline-flex; align-items: center; border: 2px solid #1C1917; border-radius: 4px; padding: 2px 10px; font-size: 0.7rem; font-weight: 800; background: #FEF2F2; color: #991B1B; text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* ============================================
+   SHIMMER LOADING (neu: stripe pattern)
+   ============================================ */
+.shimmer {
+  background: repeating-linear-gradient(
+    -45deg,
+    #FEF3C7 0px,
+    #FEF3C7 10px,
+    #FFFBEB 10px,
+    #FFFBEB 20px
+  );
+  background-size: 40px 40px;
+  animation: shimmer-move 0.8s linear infinite;
+  border-radius: 4px;
+}
+
+@keyframes shimmer-move {
+  from { background-position: 0 0; }
+  to { background-position: 40px 40px; }
+}
+
+/* ============================================
+   PULSE DOT
+   ============================================ */
+.pulse-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #10B981;
+  border: 2px solid #1C1917;
+  animation: pulse-ring 1.5s infinite;
+}
+
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+  70%  { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+/* ============================================
+   ANNOUNCEMENT TICKER
+   ============================================ */
+.running-text-container {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.running-text {
+  display: inline-block;
+  animation: running-text 35s linear infinite;
+}
+
+@keyframes running-text {
+  from { transform: translateX(100vw); }
+  to   { transform: translateX(-100%); }
+}
+
+/* ============================================
+   CARD HOVER
+   ============================================ */
+.card-hover {
+  transition: all 0.08s ease;
+}
+
+.card-hover:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px #1C1917;
+}
+
+/* ============================================
+   NUMBER DISPLAY
+   ============================================ */
+.stat-number {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  font-weight: 900;
+}
+
+/* ============================================
+   PODIUM
+   ============================================ */
+.trophy-bounce {
+  animation: trophy-bounce 3s ease-in-out infinite;
+}
+
+@keyframes trophy-bounce {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50%       { transform: translateY(-6px) rotate(2deg); }
+}
+
+/* ============================================
+   MEDAL COLORS
+   ============================================ */
+.medal-gold   { color: #F59E0B; }
+.medal-silver { color: #6B7280; }
+.medal-bronze { color: #B45309; }
+
+/* ============================================
+   STRIPED SECTION BG (neubrutalist accent)
+   ============================================ */
+.stripe-accent {
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 10px,
+    rgba(8, 145, 178, 0.04) 10px,
+    rgba(8, 145, 178, 0.04) 20px
+  );
+}
+
+/* ============================================
+   FORMAT CARD SELECTOR
+   ============================================ */
+.format-card {
+  border: var(--neu-border);
+  border-radius: var(--neu-radius);
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.08s ease;
+  background: white;
+  text-align: center;
+}
+
+.format-card:hover {
+  box-shadow: var(--neu-shadow);
+  transform: translate(-1px, -1px);
+}
+
+.format-card.selected {
+  border-color: var(--neu-ocean);
+  background: #ECFEFF;
+  box-shadow: var(--neu-shadow-ocean);
+  transform: translate(-2px, -2px);
+}
+
+/* ============================================
+   ADMIN LAYOUT
+   ============================================ */
+.admin-sidebar {
+  background: #FFFFFF;
+  border-right: var(--neu-border-thick);
+}
+
+.admin-topbar {
+  background: #FFFFFF;
+  border-bottom: var(--neu-border);
+}
+
+.admin-nav-item {
+  border: 2px solid transparent;
+  border-radius: var(--neu-radius);
+  font-weight: 700;
+  transition: all 0.08s ease;
+}
+
+.admin-nav-item:hover {
+  background: #FEF9EE;
+  border-color: #1C1917;
+}
+
+.admin-nav-item.active {
+  background: #ECFEFF;
+  border-color: var(--neu-ocean);
+  box-shadow: 2px 2px 0px var(--neu-ocean);
+  color: #0E7490;
+}

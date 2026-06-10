@@ -1,0 +1,54 @@
+﻿app/(public)/lomba/[slug]/page.tsx(68,35): error TS2322: Type '{ event: { name: string; id: string; slug: string; description: string | null; logoUrl: string | null; bannerUrl: string | null; startDate: Date; endDate: Date; location: string | null; ... 4 more ...; updatedAt: Date; }; ... 7 more ...; _count: { ...; }; } & { ...; }' is not assignable to type 'Competition'.
+  Types of property 'teams' are incompatible.
+    Type '({ rankings: { id: string; updatedAt: Date; competitionId: string; teamId: string | null; participantId: string | null; position: number; points: number; wins: number; losses: number; ... 4 more ...; bestScore: number | null; }[]; members: ({ ...; } & { ...; })[]; } & { ...; })[]' is not assignable to type 'Team[]'.
+      Property 'institution' is missing in type '{ rankings: { id: string; updatedAt: Date; competitionId: string; teamId: string | null; participantId: string | null; position: number; points: number; wins: number; losses: number; ... 4 more ...; bestScore: number | null; }[]; members: ({ ...; } & { ...; })[]; } & { ...; }' but required in type 'Team'.
+app/(public)/lomba/page.tsx(34,27): error TS2322: Type '({ champions: ({ participant: { name: string; id: string; createdAt: Date; eventId: string; npk: string | null; section: string | null; } | null; team: { name: string; id: string; logoUrl: string | null; ... 8 more ...; sectionWeights: string | null; } | null; } & { ...; })[]; _count: { ...; }; } & { ...; })[]' is not assignable to type 'Competition[]'.
+  Type '{ champions: ({ participant: { name: string; id: string; createdAt: Date; eventId: string; npk: string | null; section: string | null; } | null; team: { name: string; id: string; logoUrl: string | null; ... 8 more ...; sectionWeights: string | null; } | null; } & { ...; })[]; _count: { ...; }; } & { ...; }' is not assignable to type 'Competition'.
+    Types of property 'champions' are incompatible.
+      Type '({ participant: { name: string; id: string; createdAt: Date; eventId: string; npk: string | null; section: string | null; } | null; team: { name: string; id: string; logoUrl: string | null; ... 8 more ...; sectionWeights: string | null; } | null; } & { ...; })[]' is not assignable to type '{ position: number; team: { name: string; } | null; participant: { name: string; } | null; institution: string | null; }[]'.
+        Property 'institution' is missing in type '{ participant: { name: string; id: string; createdAt: Date; eventId: string; npk: string | null; section: string | null; } | null; team: { name: string; id: string; logoUrl: string | null; ... 8 more ...; sectionWeights: string | null; } | null; } & { ...; }' but required in type '{ position: number; team: { name: string; } | null; participant: { name: string; } | null; institution: string | null; }'.
+app/(public)/page.tsx(96,20): error TS2322: Type '{ pointSystem: any; name: string; id: string; slug: string; description: string | null; logoUrl: string | null; bannerUrl: string | null; startDate: Date; endDate: Date; location: string | null; status: string; themeColor: string; createdAt: Date; updatedAt: Date; }' is not assignable to type 'EventData'.
+  Types of property 'startDate' are incompatible.
+    Type 'Date' is not assignable to type 'string'.
+app/(public)/page.tsx(99,25): error TS2322: Type '({ champions: ({ participant: { name: string; id: string; createdAt: Date; eventId: string; npk: string | null; section: string | null; } | null; team: { name: string; id: string; logoUrl: string | null; ... 8 more ...; sectionWeights: string | null; } | null; } & { ...; })[]; _count: { ...; }; } & { ...; })[]' is not assignable to type 'Competition[]'.
+  Type '{ champions: ({ participant: { name: string; id: string; createdAt: Date; eventId: string; npk: string | null; section: string | null; } | null; team: { name: string; id: string; logoUrl: string | null; ... 8 more ...; sectionWeights: string | null; } | null; } & { ...; })[]; _count: { ...; }; } & { ...; }' is not assignable to type 'Competition'.
+    Types of property 'champions' are incompatible.
+      Type '({ participant: { name: string; id: string; createdAt: Date; eventId: string; npk: string | null; section: string | null; } | null; team: { name: string; id: string; logoUrl: string | null; ... 8 more ...; sectionWeights: string | null; } | null; } & { ...; })[]' is not assignable to type '{ position: number; institution: string | null; team: { name: string; } | null; participant: { name: string; } | null; }[]'.
+        Property 'institution' is missing in type '{ participant: { name: string; id: string; createdAt: Date; eventId: string; npk: string | null; section: string | null; } | null; team: { name: string; id: string; logoUrl: string | null; ... 8 more ...; sectionWeights: string | null; } | null; } & { ...; }' but required in type '{ position: number; institution: string | null; team: { name: string; } | null; participant: { name: string; } | null; }'.
+app/(public)/page.tsx(100,29): error TS2322: Type '{ id: string; createdAt: Date; updatedAt: Date; eventId: string; type: string; competitionId: string | null; title: string; content: string; priority: string; isPinned: boolean; isRunningText: boolean; isPublished: boolean; publishedAt: Date; expiresAt: Date | null; }[]' is not assignable to type 'Announcement[]'.
+  Type '{ id: string; createdAt: Date; updatedAt: Date; eventId: string; type: string; competitionId: string | null; title: string; content: string; priority: string; isPinned: boolean; isRunningText: boolean; isPublished: boolean; publishedAt: Date; expiresAt: Date | null; }' is not assignable to type 'Announcement'.
+    Types of property 'publishedAt' are incompatible.
+      Type 'Date' is not assignable to type 'string'.
+app/(public)/page.tsx(101,24): error TS2322: Type '({ competition: { name: string; slug: string; }; participants: ({ participant: { name: string; id: string; createdAt: Date; eventId: string; npk: string | null; section: string | null; } | null; team: { ...; } | null; } & { ...; })[]; } & { ...; })[]' is not assignable to type 'Match[]'.
+  Type '{ competition: { name: string; slug: string; }; participants: ({ participant: { name: string; id: string; createdAt: Date; eventId: string; npk: string | null; section: string | null; } | null; team: { ...; } | null; } & { ...; })[]; } & { ...; }' is not assignable to type 'Match'.
+    Types of property 'scheduledAt' are incompatible.
+      Type 'Date | null' is not assignable to type 'string | null'.
+        Type 'Date' is not assignable to type 'string'.
+app/admin/(authenticated)/klasemen/page.tsx(143,17): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(outsideProps: Props<{ name: string; value: number; color: string; }, any>): ReactElement<unknown, string | JSXElementConstructor<any>>', gave the following error.
+    Type '({ name, percent }: { name: string; percent?: number; }) => string' is not assignable to type 'PieLabel | undefined'.
+      Type '({ name, percent }: { name: string; percent?: number; }) => string' is not assignable to type '(props: PieLabelRenderProps) => ReactNode | ReactElement<SVGElement, string | JSXElementConstructor<any>>'.
+        Types of parameters '__0' and 'props' are incompatible.
+          Type 'PieLabelRenderProps' is not assignable to type '{ name: string; percent?: number | undefined; }'.
+            Types of property 'name' are incompatible.
+              Type 'string | undefined' is not assignable to type 'string'.
+                Type 'undefined' is not assignable to type 'string'.
+  Overload 2 of 2, '(outsideProps: Props<any, any>): ReactElement<unknown, string | JSXElementConstructor<any>>', gave the following error.
+    Type '({ name, percent }: { name: string; percent?: number; }) => string' is not assignable to type 'PieLabel | undefined'.
+      Type '({ name, percent }: { name: string; percent?: number; }) => string' is not assignable to type '(props: PieLabelRenderProps) => ReactNode | ReactElement<SVGElement, string | JSXElementConstructor<any>>'.
+        Types of parameters '__0' and 'props' are incompatible.
+          Type 'PieLabelRenderProps' is not assignable to type '{ name: string; percent?: number | undefined; }'.
+            Types of property 'name' are incompatible.
+              Type 'string | undefined' is not assignable to type 'string'.
+                Type 'undefined' is not assignable to type 'string'.
+prisma/seed.ts(7,41): error TS2345: Argument of type 'string' is not assignable to parameter of type 'BetterSQLite3InputParams'.
+  Type 'string' is not assignable to type '{ url: ":memory:" | (string & {}); }'.
+prisma/seed.ts(82,9): error TS2353: Object literal may only specify known properties, and 'institution' does not exist in type 'Without<ParticipantCreateInput, ParticipantUncheckedCreateInput> & ParticipantUncheckedCreateInput'.
+prisma/seed.ts(100,108): error TS2353: Object literal may only specify known properties, and 'institution' does not exist in type 'Without<TeamCreateInput, TeamUncheckedCreateInput> & TeamUncheckedCreateInput'.
+prisma/seed.ts(107,135): error TS2353: Object literal may only specify known properties, and 'institution' does not exist in type 'Without<TeamCreateInput, TeamUncheckedCreateInput> & TeamUncheckedCreateInput'.
+prisma/seed.ts(113,139): error TS2353: Object literal may only specify known properties, and 'institution' does not exist in type 'Without<TeamCreateInput, TeamUncheckedCreateInput> & TeamUncheckedCreateInput'.
+prisma/seed.ts(158,158): error TS2353: Object literal may only specify known properties, and 'institution' does not exist in type 'Without<ChampionCreateInput, ChampionUncheckedCreateInput> & ChampionUncheckedCreateInput'.
+prisma/seed.ts(159,162): error TS2353: Object literal may only specify known properties, and 'institution' does not exist in type 'Without<ChampionCreateInput, ChampionUncheckedCreateInput> & ChampionUncheckedCreateInput'.
+prisma/seed.ts(167,24): error TS2339: Property 'institution' does not exist on type '{ id: string; section: string | null; competitionId: string; teamId: string | null; participantId: string | null; position: number; awardPoints: number; awardedAt: Date; }'.
+prisma/seed.ts(178,16): error TS2353: Object literal may only specify known properties, and 'eventId_institution' does not exist in type 'OverallStandingWhereUniqueInput'.
+prisma/seed.ts(180,36): error TS2353: Object literal may only specify known properties, and 'institution' does not exist in type 'Without<OverallStandingCreateInput, OverallStandingUncheckedCreateInput> & OverallStandingUncheckedCreateInput'.
