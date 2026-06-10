@@ -132,15 +132,7 @@ export default function TabPeserta({ comp }: { comp: Competition }) {
                 <span className="text-sm font-black text-[#1C1917]">🤝 Tim Kolaborasi Antar-Seksi</span>
               </label>
 
-              {!isCollab ? (
-                <div>
-                  <label className="block text-xs font-black text-[#1C1917] mb-1.5 uppercase tracking-wider">Seksi</label>
-                  <select value={teamSection} onChange={e=>setTeamSection(e.target.value)} className="neu-input">
-                    <option value="">-- Pilih Seksi --</option>
-                    {sections.map(s=><option key={s.id} value={s.name}>{s.name}</option>)}
-                  </select>
-                </div>
-              ) : (
+              {isCollab && (
                 <div className="space-y-2">
                   <label className="block text-xs font-black text-[#1C1917] uppercase tracking-wider">Seksi yang Terlibat + Bobot Poin</label>
                   <div className="space-y-2">
@@ -178,13 +170,33 @@ export default function TabPeserta({ comp }: { comp: Competition }) {
             </>
           )}
 
+          {!isCollab && (
+            <div>
+              <label className="block text-xs font-black text-[#1C1917] mb-1.5 uppercase tracking-wider">
+                {isTeam ? "Seksi Tim & Filter Peserta" : "Filter Seksi / Asal Seksi"}
+              </label>
+              <select value={teamSection} onChange={e=>setTeamSection(e.target.value)} className="neu-input">
+                <option value="">{isTeam ? "-- Pilih Seksi Tim --" : "-- Semua Seksi --"}</option>
+                {sections.map(s=><option key={s.id} value={s.name}>{s.name}</option>)}
+              </select>
+            </div>
+          )}
+
           {/* Pilih Anggota */}
           <div>
             <label className="block text-xs font-black text-[#1C1917] mb-1.5 uppercase tracking-wider">
               {isTeam?"Pilih Anggota Tim":"Pilih Peserta"}
             </label>
             <div className="max-h-48 overflow-y-auto border-[2.5px] border-[#1C1917] rounded-[6px] divide-y divide-[#E7E5E4]">
-              {allParticipants.map(p=>{
+              {allParticipants
+                .filter(p => {
+                  if (isCollab) {
+                    return collabSections.length === 0 || collabSections.includes(p.section || "");
+                  } else {
+                    return !teamSection || p.section === teamSection;
+                  }
+                })
+                .map(p=>{
                 const selected = memberIds.includes(p.id);
                 return (
                   <label key={p.id} className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-[#FFFBEB] ${selected?"bg-[#ECFEFF]":""}`}>
@@ -197,6 +209,14 @@ export default function TabPeserta({ comp }: { comp: Competition }) {
                   </label>
                 );
               })}
+              {allParticipants.filter(p => {
+                  if (isCollab) return collabSections.length === 0 || collabSections.includes(p.section || "");
+                  return !teamSection || p.section === teamSection;
+                }).length === 0 && (
+                <div className="p-4 text-center text-sm font-bold text-gray-500">
+                  Tidak ada peserta di seksi ini.
+                </div>
+              )}
             </div>
           </div>
 

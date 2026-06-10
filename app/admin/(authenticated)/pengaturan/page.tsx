@@ -10,6 +10,7 @@ const BEACH_COLORS = ["#0891B2","#10B981","#F97316","#F59E0B","#8B5CF6","#EC4899
 const TABS = [
   { key:"event",  label:"⚙️ Event" },
   { key:"seksi",  label:"🏢 Kelola Seksi" },
+  { key:"sponsor",label:"🤝 Sponsor" },
   { key:"warna",  label:"🎨 Warna Tema" },
 ];
 
@@ -27,12 +28,16 @@ export default function AdminPengaturanPage() {
   const [newSec, setNewSec] = useState({ name:"", color:"#0891B2" });
   const [editingId, setEditingId] = useState<string|null>(null);
   const [editForm, setEditForm] = useState({ name:"", color:"" });
+  // Sponsor state
+  const [sponsors, setSponsors] = useState<any[]>([]);
+  const [newSponsor, setNewSponsor] = useState({ name:"", tier:"REGULAR", logoUrl:"" });
 
   useEffect(() => {
     Promise.all([
       fetch("/api/event").then(r=>r.json()),
       fetch("/api/sections").then(r=>r.json()),
-    ]).then(([data, secs]) => {
+      fetch("/api/sponsors").then(r=>r.json()),
+    ]).then(([data, secs, spon]) => {
       const ps = typeof data.pointSystem==="string" ? JSON.parse(data.pointSystem) : data.pointSystem;
       setForm({
         name: data.name||"", description: data.description||"", location: data.location||"",
@@ -42,6 +47,7 @@ export default function AdminPengaturanPage() {
         pointFirst: ps?.first||100, pointSecond: ps?.second||70, pointThird: ps?.third||40,
       });
       setSections(Array.isArray(secs)?secs:[]);
+      setSponsors(Array.isArray(spon)?spon:[]);
     }).catch(()=>toast.error("Gagal memuat")).finally(()=>setLoading(false));
   }, []);
 
@@ -85,6 +91,27 @@ export default function AdminPengaturanPage() {
       await fetch(`/api/sections/${id}`, { method:"DELETE" });
       setSections(prev=>prev.filter(s=>s.id!==id));
       toast.success("Seksi dihapus");
+    } catch { toast.error("Gagal menghapus"); }
+  };
+
+  const handleAddSponsor = async () => {
+    if(!newSponsor.name.trim()) return;
+    try {
+      const r = await fetch("/api/sponsors", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(newSponsor) });
+      if(!r.ok) throw new Error();
+      const created = await r.json();
+      setSponsors(prev=>[...prev, created]);
+      setNewSponsor({ name:"", tier:"REGULAR", logoUrl:"" });
+      toast.success("Sponsor ditambahkan!");
+    } catch { toast.error("Gagal menambahkan"); }
+  };
+
+  const handleDeleteSponsor = async (id:string) => {
+    if(!confirm("Hapus sponsor ini?")) return;
+    try {
+      await fetch(`/api/sponsors/${id}`, { method:"DELETE" });
+      setSponsors(prev=>prev.filter(s=>s.id!==id));
+      toast.success("Sponsor dihapus");
     } catch { toast.error("Gagal menghapus"); }
   };
 
@@ -245,6 +272,63 @@ export default function AdminPengaturanPage() {
             </div>
           </div>
           <p className="text-black text-xs font-semibold">💡 Seksi yang ditambahkan akan muncul sebagai opsi saat mendaftarkan peserta dan tim.</p>
+        </div>
+      )}
+
+      {/* Tab: Sponsor */}
+      {activeTab==="sponsor" && (
+        <div className="space-y-4">
+          <div className="neu-card p-5">
+            <h3 className="font-black text-[#1C1917] mb-4 flex items-center gap-2">🤝 Tambah Sponsor</h3>
+            <div className="grid sm:grid-cols-2 gap-4 items-end">
+              <div>
+                <label className={lbl}>Nama Sponsor</label>
+                <input value={newSponsor.name} onChange={e=>setNewSponsor({...newSponsor,name:e.target.value})} placeholder="PT. Sponsor Keren" className={inp}/>
+              </div>
+              <div>
+                <label className={lbl}>Level Sponsor</label>
+                <select value={newSponsor.tier} onChange={e=>setNewSponsor({...newSponsor,tier:e.target.value})} className={inp}>
+                  <option value="UTAMA">Sponsor Utama</option>
+                  <option value="REGULAR">Sponsor Reguler</option>
+                  <option value="SUPPORT">Media Partner / Support</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className={lbl}>URL Logo (Opsional)</label>
+                <input value={newSponsor.logoUrl} onChange={e=>setNewSponsor({...newSponsor,logoUrl:e.target.value})} placeholder="https://example.com/logo.png" className={inp}/>
+              </div>
+              <div className="sm:col-span-2 mt-2">
+                <button onClick={handleAddSponsor} className="btn-neon px-6 py-2.5 text-sm flex items-center gap-2">
+                  <Plus className="w-4 h-4"/> Tambah Sponsor
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="neu-card overflow-hidden">
+            <div className="px-5 py-3 border-b-[2.5px] border-[#1C1917] bg-[#FFFBEB] flex items-center justify-between">
+              <h3 className="font-black text-[#1C1917]">Daftar Sponsor ({sponsors.length})</h3>
+            </div>
+            <div className="divide-y divide-[#E7E5E4]">
+              {sponsors.map(sponsor=>(
+                <div key={sponsor.id} className="flex items-center gap-3 px-5 py-4 hover:bg-[#FFFBEB]">
+                  {sponsor.logoUrl ? (
+                    <img src={sponsor.logoUrl} alt={sponsor.name} className="w-12 h-12 object-contain border-2 border-[#1C1917] bg-white rounded-[6px]" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-[6px] border-2 border-[#1C1917] bg-[#F5F5F4] flex items-center justify-center font-black text-black">?</div>
+                  )}
+                  <div className="flex-1">
+                    <div className="font-black text-[#1C1917]">{sponsor.name}</div>
+                    <div className="text-xs font-bold text-black border-2 border-[#1C1917] px-2 py-0.5 rounded-[4px] w-fit mt-1" style={{background: sponsor.tier==="UTAMA"?"#FEF3C7":sponsor.tier==="REGULAR"?"#ECFEFF":"#F5F5F4"}}>{sponsor.tier}</div>
+                  </div>
+                  <button onClick={()=>handleDeleteSponsor(sponsor.id)} className="p-2 rounded-[6px] border-2 border-transparent text-black hover:border-[#C2410C] hover:text-[#C2410C] transition-all">
+                    <Trash2 className="w-4 h-4"/>
+                  </button>
+                </div>
+              ))}
+              {sponsors.length===0 && <div className="px-5 py-8 text-center text-black font-bold">Belum ada sponsor</div>}
+            </div>
+          </div>
         </div>
       )}
 

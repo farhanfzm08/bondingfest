@@ -96,10 +96,10 @@ export default function CompetitionDetailClient({ competition }: { competition: 
               key={id}
               onClick={() => setActiveTab(id)}
               className={cn(
-                "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all flex-shrink-0",
+                "flex items-center gap-2 px-4 py-2.5 rounded-[8px] text-sm font-black whitespace-nowrap transition-all flex-shrink-0 border-2 border-[#1C1917]",
                 activeTab === id
-                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20"
-                  : "glass text-white hover:text-white"
+                  ? "bg-indigo-600 text-white shadow-[3px_3px_0_#1C1917] translate-x-[-2px] translate-y-[-2px]"
+                  : "bg-white text-[#1C1917] hover:bg-indigo-50"
               )}
             >
               <Icon className="w-4 h-4" />

@@ -26,15 +26,15 @@ export default function AnnouncementTicker() {
   const text = announcements.map((a) => `📢 ${a.title}`).join("   •   ");
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-40 bg-gradient-to-r from-indigo-600/90 to-violet-600/90 backdrop-blur-sm border-b border-white/10">
-      <div className="flex items-center h-8">
-        <div className="flex-shrink-0 flex items-center gap-2 px-4 bg-white/10 h-full border-r border-white/10">
-          <Megaphone className="w-3.5 h-3.5 text-black" />
-          <span className="text-black text-xs font-semibold tracking-wider uppercase">Live</span>
-          <span className="pulse-dot" />
+    <div className="relative z-40 bg-[#1C1917] border-b-[3px] border-[#1C1917]">
+      <div className="flex items-center h-10">
+        <div className="flex-shrink-0 flex items-center gap-2 px-4 bg-white/10 h-full border-r-2 border-[#1C1917]">
+          <Megaphone className="w-3.5 h-3.5 text-yellow-400" />
+          <span className="text-yellow-400 text-xs font-black tracking-wider uppercase">Live</span>
+          <span className="pulse-dot bg-yellow-400" />
         </div>
         <div className="running-text-container flex-1">
-          <span className="running-text text-black text-xs font-medium">
+          <span className="running-text text-white text-xs font-bold uppercase tracking-wider">
             {text} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {text}
           </span>
         </div>
