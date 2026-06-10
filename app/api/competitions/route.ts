@@ -67,7 +67,7 @@ export async function POST(request: Request) {
         venue: body.venue,
         maxParticipants: body.maxParticipants ? parseInt(body.maxParticipants) : null,
         rules: body.rules,
-        order: body.order || 0,
+        order: body.order ? parseInt(body.order, 10) : 0,
       },
     });
 
