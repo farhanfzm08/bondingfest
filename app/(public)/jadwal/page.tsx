@@ -23,12 +23,22 @@ export default async function JadwalPage() {
     },
   });
 
-  const grouped = matches.reduce((acc, match) => {
-    const date = match.scheduledAt ? new Date(match.scheduledAt).toDateString() : "Tanggal TBD";
-    if (!acc[date]) acc[date] = [];
-    acc[date].push(match);
-    return acc;
-  }, {} as Record<string, typeof matches>);
+  const grouped = matches.reduce<Record<string, typeof matches>>(
+    (acc, match) => {
+      const date = match.scheduledAt
+        ? new Date(match.scheduledAt).toDateString()
+        : "Tanggal belum ditentukan";
+  
+      if (!acc[date]) {
+        acc[date] = [];
+      }
+  
+      acc[date].push(match);
+  
+      return acc;
+    },
+    {}
+  );
 
   return (
     <div className="min-h-screen pt-24 pb-20 px-4">
