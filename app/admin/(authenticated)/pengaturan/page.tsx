@@ -73,8 +73,9 @@ export default function AdminPengaturanPage() {
           canvas.width = width;
           canvas.height = height;
           const ctx = canvas.getContext("2d");
-          ctx?.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL("image/webp", 0.8));
+          if (!ctx) { reject(new Error("Canvas not supported")); return; }
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/png")); // use PNG for better transparency support
         };
         img.onerror = (e) => reject(e);
       };
@@ -372,7 +373,7 @@ export default function AdminPengaturanPage() {
               {sponsors.map(sponsor=>(
                 <div key={sponsor.id} className="flex items-center gap-3 px-5 py-4 hover:bg-[#FFFBEB]">
                   {sponsor.displayStyle !== "TEXT_ONLY" && sponsor.logoUrl ? (
-                    <img src={sponsor.logoUrl} alt={sponsor.name} className="w-12 h-12 object-contain border-2 border-[#1C1917] bg-white rounded-[6px]" />
+                    <img src={sponsor.logoUrl} alt={sponsor.name} className="w-12 h-12 object-contain border-2 border-[#1C1917] bg-white rounded-[6px]" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                   ) : (
                     <div className="w-12 h-12 rounded-[6px] border-2 border-[#1C1917] bg-[#F5F5F4] flex items-center justify-center font-black text-black">A</div>
                   )}

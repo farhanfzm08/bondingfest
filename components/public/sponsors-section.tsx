@@ -54,7 +54,12 @@ export default function SponsorsSection({ sponsors }: { sponsors: Sponsor[] }) {
                   const content = (
                     <div className={cn("flex flex-col items-center justify-center gap-3 text-center transition-transform hover:-translate-y-1 hover:shadow-[6px_6px_0_#1C1917]", config.cardClass)}>
                       {sponsor.displayStyle !== "TEXT_ONLY" && sponsor.logoUrl && (
-                        <img src={sponsor.logoUrl} alt={sponsor.name} className="max-w-[120px] max-h-[80px] sm:max-w-[160px] sm:max-h-[100px] object-contain" />
+                        <img 
+                          src={sponsor.logoUrl} 
+                          alt={sponsor.name} 
+                          className="max-w-[120px] max-h-[80px] sm:max-w-[160px] sm:max-h-[100px] object-contain"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
                       )}
                       {sponsor.displayStyle !== "LOGO_ONLY" && (
                         <span className={config.textClass}>{sponsor.name}</span>
