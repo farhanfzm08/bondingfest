@@ -31,6 +31,7 @@ export async function POST(request: Request) {
         logoUrl: body.logoUrl,
         websiteUrl: body.websiteUrl,
         tier: body.tier || "REGULAR",
+        displayStyle: body.displayStyle || "TEXT_AND_LOGO",
         order: body.order || 0,
       },
     });

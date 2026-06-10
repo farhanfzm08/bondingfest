@@ -30,7 +30,7 @@ export default function AdminPengaturanPage() {
   const [editForm, setEditForm] = useState({ name:"", color:"" });
   // Sponsor state
   const [sponsors, setSponsors] = useState<any[]>([]);
-  const [newSponsor, setNewSponsor] = useState({ name:"", tier:"REGULAR", logoUrl:"" });
+  const [newSponsor, setNewSponsor] = useState({ name:"", tier:"REGULAR", logoUrl:"", displayStyle:"TEXT_AND_LOGO" });
 
   useEffect(() => {
     Promise.all([
@@ -50,6 +50,54 @@ export default function AdminPengaturanPage() {
       setSponsors(Array.isArray(spon)?spon:[]);
     }).catch(()=>toast.error("Gagal memuat")).finally(()=>setLoading(false));
   }, []);
+
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const MAX_WIDTH = 400;
+          const MAX_HEIGHT = 400;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+          } else {
+            if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx?.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/webp", 0.8));
+        };
+        img.onerror = (e) => reject(e);
+      };
+      reader.onerror = (e) => reject(e);
+    });
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("File harus berupa gambar");
+      return;
+    }
+    toast.info("Mengkompres gambar...");
+    try {
+      const base64 = await compressImage(file);
+      setNewSponsor(prev => ({ ...prev, logoUrl: base64 }));
+      toast.success("Gambar siap!");
+    } catch {
+      toast.error("Gagal memproses gambar");
+    }
+  };
 
   const handleSaveEvent = async () => {
     setSaving(true);
@@ -293,9 +341,20 @@ export default function AdminPengaturanPage() {
                   <option value="SUPPORT">Media Partner / Support</option>
                 </select>
               </div>
-              <div className="sm:col-span-2">
-                <label className={lbl}>URL Logo (Opsional)</label>
-                <input value={newSponsor.logoUrl} onChange={e=>setNewSponsor({...newSponsor,logoUrl:e.target.value})} placeholder="https://example.com/logo.png" className={inp}/>
+              <div>
+                <label className={lbl}>Gaya Tampilan</label>
+                <select value={newSponsor.displayStyle} onChange={e=>setNewSponsor({...newSponsor,displayStyle:e.target.value})} className={inp}>
+                  <option value="TEXT_AND_LOGO">Teks & Logo</option>
+                  <option value="LOGO_ONLY">Logo Saja</option>
+                  <option value="TEXT_ONLY">Teks Saja</option>
+                </select>
+              </div>
+              <div>
+                <label className={lbl}>Logo (Upload)</label>
+                <div className="flex gap-2 items-center">
+                  <input type="file" accept="image/*" onChange={handleLogoUpload} className="text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded-[4px] file:border-2 file:border-[#1C1917] file:text-xs file:font-black file:bg-[#F5F5F4] hover:file:bg-[#E7E5E4] cursor-pointer"/>
+                  {newSponsor.logoUrl && <img src={newSponsor.logoUrl} className="h-8 w-8 object-contain border-2 border-[#1C1917] rounded-[4px]" />}
+                </div>
               </div>
               <div className="sm:col-span-2 mt-2">
                 <button onClick={handleAddSponsor} className="btn-neon px-6 py-2.5 text-sm flex items-center gap-2">
@@ -312,14 +371,20 @@ export default function AdminPengaturanPage() {
             <div className="divide-y divide-[#E7E5E4]">
               {sponsors.map(sponsor=>(
                 <div key={sponsor.id} className="flex items-center gap-3 px-5 py-4 hover:bg-[#FFFBEB]">
-                  {sponsor.logoUrl ? (
+                  {sponsor.displayStyle !== "TEXT_ONLY" && sponsor.logoUrl ? (
                     <img src={sponsor.logoUrl} alt={sponsor.name} className="w-12 h-12 object-contain border-2 border-[#1C1917] bg-white rounded-[6px]" />
                   ) : (
-                    <div className="w-12 h-12 rounded-[6px] border-2 border-[#1C1917] bg-[#F5F5F4] flex items-center justify-center font-black text-black">?</div>
+                    <div className="w-12 h-12 rounded-[6px] border-2 border-[#1C1917] bg-[#F5F5F4] flex items-center justify-center font-black text-black">A</div>
                   )}
                   <div className="flex-1">
-                    <div className="font-black text-[#1C1917]">{sponsor.name}</div>
-                    <div className="text-xs font-bold text-black border-2 border-[#1C1917] px-2 py-0.5 rounded-[4px] w-fit mt-1" style={{background: sponsor.tier==="UTAMA"?"#FEF3C7":sponsor.tier==="REGULAR"?"#ECFEFF":"#F5F5F4"}}>{sponsor.tier}</div>
+                    <div className="font-black text-[#1C1917]">
+                      {sponsor.displayStyle === "LOGO_ONLY" ? <span className="text-xs font-normal italic text-gray-500">(Hanya menampilkan logo) - </span> : null}
+                      {sponsor.name}
+                    </div>
+                    <div className="flex gap-2 mt-1">
+                      <div className="text-xs font-bold text-black border-2 border-[#1C1917] px-2 py-0.5 rounded-[4px] w-fit" style={{background: sponsor.tier==="UTAMA"?"#FEF3C7":sponsor.tier==="REGULAR"?"#ECFEFF":"#F5F5F4"}}>{sponsor.tier}</div>
+                      <div className="text-xs font-bold text-black border-2 border-[#1C1917] px-2 py-0.5 rounded-[4px] w-fit bg-[#F3F4F6]">{sponsor.displayStyle}</div>
+                    </div>
                   </div>
                   <button onClick={()=>handleDeleteSponsor(sponsor.id)} className="p-2 rounded-[6px] border-2 border-transparent text-black hover:border-[#C2410C] hover:text-[#C2410C] transition-all">
                     <Trash2 className="w-4 h-4"/>

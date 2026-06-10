@@ -311,9 +311,10 @@ model Sponsor {
   name       String
   logoUrl    String?
   websiteUrl String?
-  tier       String   @default("REGULAR")
-  order      Int      @default(0)
-  createdAt  DateTime @default(now())
+  tier         String   @default("REGULAR")
+  displayStyle String   @default("TEXT_AND_LOGO") // TEXT_AND_LOGO, LOGO_ONLY, TEXT_ONLY
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
 }
 
 // ===========================
