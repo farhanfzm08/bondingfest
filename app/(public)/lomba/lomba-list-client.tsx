@@ -11,7 +11,6 @@ interface Competition {
   champions: Array<{ position:number; team:{name:string}|null; participant:{name:string}|null; section:string|null; }>;
 }
 
-const categories = ["Semua","Olahraga","Esports","Akademik","Seni","Seni Budaya","Kreativitas","Kuliner"];
 const catIcons: Record<string,string> = { Olahraga:"⚽", Esports:"🎮", Akademik:"📚", Seni:"🎨", "Seni Budaya":"🎭", Kreativitas:"🎨", Kuliner:"🍳" };
 const catColors: Record<string,string> = { Olahraga:"#0891B2", Esports:"#8B5CF6", Akademik:"#F59E0B", Seni:"#EC4899", Kreativitas:"#10B981", Kuliner:"#F97316" };
 const statusFilters = ["Semua","UPCOMING","ONGOING","COMPLETED"];
@@ -20,6 +19,9 @@ export default function LombaListClient({ competitions }: { competitions:Competi
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("Semua");
   const [activeStatus, setActiveStatus] = useState("Semua");
+
+  const uniqueCategories = Array.from(new Set(competitions.map(c => c.category).filter(Boolean))) as string[];
+  const activeCategories = ["Semua", ...uniqueCategories];
 
   const filtered = competitions.filter(c=>{
     const ms = c.name.toLowerCase().includes(search.toLowerCase())||(c.description?.toLowerCase().includes(search.toLowerCase())??false);
@@ -48,7 +50,7 @@ export default function LombaListClient({ competitions }: { competitions:Competi
               className="w-full border-[2.5px] border-[#1C1917] rounded-[6px] pl-11 pr-4 py-3 text-[#1C1917] placeholder:text-black font-semibold bg-white focus:outline-none focus:shadow-[3px_3px_0_#0891B2] transition-all"/>
           </div>
           <div className="flex flex-wrap gap-2">
-            {categories.map(cat=>(
+            {activeCategories.map(cat=>(
               <button key={cat} onClick={()=>setActiveCategory(cat)}
                 className={cn("px-4 py-1.5 rounded-[4px] border-2 text-xs font-black transition-all",
                   activeCategory===cat ? "bg-[#0891B2] text-white border-[#0891B2]" : "bg-white text-[#0891B2] border-[#D4D0CA] hover:border-[#0891B2]")}>

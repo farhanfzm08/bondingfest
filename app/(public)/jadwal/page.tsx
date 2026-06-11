@@ -40,6 +40,10 @@ export default async function JadwalPage() {
     {}
   );
 
+  const ps = typeof event.pointSystem === "string" ? JSON.parse(event.pointSystem) : event.pointSystem;
+  const isIgLiveActive = ps?.isIgLiveActive || false;
+  const igLiveUrl = ps?.igLiveUrl || "";
+
   return (
     <div className="min-h-screen pt-24 pb-20 px-4">
       <div className="max-w-4xl mx-auto">
@@ -53,6 +57,25 @@ export default async function JadwalPage() {
           </h1>
           <p className="text-black font-semibold">{matches.length} pertandingan terjadwal</p>
         </div>
+
+        {isIgLiveActive && (
+          <div className="mb-8 neu-card p-4 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 border-[2.5px] border-[#1C1917] shadow-[4px_4px_0_#1C1917] flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center animate-pulse">
+                <span className="text-xl">📱</span>
+              </div>
+              <div>
+                <h3 className="text-white font-black text-lg">Live Instagram Sekarang!</h3>
+                <p className="text-white/90 text-sm font-bold">Tonton pertandingan secara langsung</p>
+              </div>
+            </div>
+            {igLiveUrl && (
+              <a href={igLiveUrl} target="_blank" rel="noreferrer" className="px-5 py-2.5 bg-white text-pink-600 font-black rounded-full border-2 border-[#1C1917] hover:bg-pink-50 transition-colors whitespace-nowrap">
+                Tonton Live
+              </a>
+            )}
+          </div>
+        )}
 
         {Object.keys(grouped).length === 0 ? (
           <div className="neu-card p-16 text-center text-black">

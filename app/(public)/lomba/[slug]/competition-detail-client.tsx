@@ -17,6 +17,7 @@ interface Announcement { id: string; title: string; content: string; type: strin
 
 interface Competition {
   id: string; name: string; slug: string; description: string | null; status: string; type: string;
+  format: string; config: string | null;
   category: string | null; venue: string | null; rules: string | null; bannerUrl: string | null;
   teams: Team[]; compParticipants: Array<{ participant: Participant }>; matches: Match[];
   rankings: Array<{ position: number; points: number; wins: number; losses: number; draws: number; team: { name: string } | null; participant: { name: string } | null; }>;
@@ -24,17 +25,18 @@ interface Competition {
   _count: { teams: number; compParticipants: number; matches: number };
 }
 
-const tabs = [
-  { id: "overview", label: "Overview", icon: Trophy },
-  { id: "peserta", label: "Peserta", icon: Users },
-  { id: "jadwal", label: "Jadwal & Hasil", icon: Calendar },
-  { id: "ranking", label: "Ranking", icon: Swords },
-  { id: "galeri", label: "Galeri", icon: Image },
-  { id: "pengumuman", label: "Info", icon: Megaphone },
-];
-
 export default function CompetitionDetailClient({ competition }: { competition: Competition }) {
   const [activeTab, setActiveTab] = useState("overview");
+
+  const tabs = [
+    { id: "overview", label: "Overview", icon: Trophy },
+    { id: "peserta", label: "Peserta", icon: Users },
+    { id: "jadwal", label: "Jadwal & Hasil", icon: Calendar },
+    ...(competition.format === "BRACKET" ? [{ id: "bagan", label: "Bagan Bracket", icon: Swords }] : []),
+    { id: "ranking", label: "Ranking", icon: Swords },
+    { id: "galeri", label: "Galeri", icon: Image },
+    { id: "pengumuman", label: "Info", icon: Megaphone },
+  ];
 
   return (
     <div className="min-h-screen pt-20">
@@ -314,6 +316,66 @@ export default function CompetitionDetailClient({ competition }: { competition: 
                     );
                   })
                 )}
+              </div>
+            )}
+
+            {/* BAGAN */}
+            {activeTab === "bagan" && competition.format === "BRACKET" && (
+              <div className="glass rounded-xl p-5 overflow-x-auto">
+                {(() => {
+                  const ROUND_NAMES: Record<number, string> = { 2:"Final", 4:"Semifinal", 8:"Perempat Final", 16:"16 Besar", 32:"32 Besar" };
+                  const cfg = competition.config ? JSON.parse(competition.config) : {};
+                  const bracketSize: number = cfg.bracketSize || 8;
+                  const thirdPlace: boolean = cfg.thirdPlace ?? true;
+                  const rounds: string[] = [];
+                  let r = bracketSize;
+                  while (r >= 2) { rounds.push(ROUND_NAMES[r] || `${r} Besar`); r = r/2; }
+                  if (thirdPlace) rounds.push("Perebutan Juara 3");
+
+                  const matchesByRound: Record<string, Match[]> = {};
+                  for (const round of rounds) matchesByRound[round] = [];
+                  for (const m of competition.matches) {
+                    const rnd = m.round || "Lainnya";
+                    if (!matchesByRound[rnd]) matchesByRound[rnd] = [];
+                    matchesByRound[rnd].push(m);
+                  }
+
+                  return (
+                    <div className="flex gap-4 min-w-max pb-4">
+                      {rounds.map((rnd, ri) => (
+                        <div key={rnd} className="flex flex-col gap-3" style={{width:"220px"}}>
+                          <div className={`text-center py-2 px-3 rounded-[6px] border-[2.5px] font-black text-sm ${ri===0?"border-[#1C1917] bg-[#0891B2] text-white shadow-[3px_3px_0_#1C1917]":"border-[#D4D0CA] bg-[#F5F5F4] text-[#1C1917]"}`}>
+                            {rnd}
+                          </div>
+                          <div className="space-y-4 flex-1">
+                            {(matchesByRound[rnd]||[]).map(m=>{
+                              const pA=m.participants[0]; const pB=m.participants[1];
+                              const nA=pA?.team?.name||pA?.participant?.name||"TBD";
+                              const nB=pB?.team?.name||pB?.participant?.name||"TBD";
+                              return (
+                                <div key={m.id} className={`rounded-[6px] border-[2.5px] border-[#1C1917] bg-white overflow-hidden ${m.status==="COMPLETED"?"shadow-[3px_3px_0_#10B981]":"shadow-[3px_3px_0_#D4D0CA]"}`}>
+                                  <div className={`flex items-center justify-between px-3 py-2 border-b-2 border-[#E7E5E4] ${pA?.result==="WIN"?"bg-[#ECFDF5]":""}`}>
+                                    <span className={`text-xs font-black truncate max-w-[120px] ${pA?.result==="WIN"?"text-[#10B981]":pA?.result==="LOSE"?"text-black":"text-[#1C1917]"}`}>{nA}</span>
+                                    <span className={`text-sm font-black stat-number ${pA?.result==="WIN"?"text-[#10B981]":"text-[#1C1917]"}`}>{m.status==="COMPLETED" ? pA?.score??0 : "-"}</span>
+                                  </div>
+                                  <div className={`flex items-center justify-between px-3 py-2 ${pB?.result==="WIN"?"bg-[#ECFDF5]":""}`}>
+                                    <span className={`text-xs font-black truncate max-w-[120px] ${pB?.result==="WIN"?"text-[#10B981]":pB?.result==="LOSE"?"text-black":"text-[#1C1917]"}`}>{nB}</span>
+                                    <span className={`text-sm font-black stat-number ${pB?.result==="WIN"?"text-[#10B981]":"text-[#1C1917]"}`}>{m.status==="COMPLETED" ? pB?.score??0 : "-"}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {(matchesByRound[rnd]||[]).length===0 && (
+                              <div className="p-4 text-center text-black text-xs font-semibold border-2 border-dashed border-[#D4D0CA] rounded-[6px]">
+                                Belum ada pertandingan
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             )}
 

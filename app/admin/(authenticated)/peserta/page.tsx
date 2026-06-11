@@ -98,7 +98,7 @@ export default function AdminPesertaPage() {
     try {
       await fetch(`/api/participants/${id}`, { method: "DELETE" });
       toast.success("Peserta dihapus");
-      fetchParticipants();
+      fetchData();
     } catch { toast.error("Gagal menghapus"); }
   };
 

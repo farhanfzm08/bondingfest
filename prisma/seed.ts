@@ -46,7 +46,6 @@ async function main() {
     { name: "Mobile Legends", slug: "mobile-legends", description: "Turnamen esports Mobile Legends: Bang Bang 5v5.", status: "ONGOING", type: "TEAM", category: "Esports", venue: "Gaming Zone Hall A", order: 3 },
     { name: "Cerdas Cermat", slug: "cerdas-cermat", description: "Lomba adu pengetahuan umum, sains, dan teknologi.", status: "COMPLETED", type: "TEAM", category: "Akademik", venue: "Aula Utama Lt.1", order: 4 },
     { name: "Mewarnai", slug: "mewarnai", description: "Lomba mewarnai kreatif untuk menampilkan bakat seni.", status: "UPCOMING", type: "INDIVIDUAL", category: "Seni", venue: "Ruang Seni Kreatif", order: 5 },
-    { name: "Memasak", slug: "memasak", description: "Kompetisi memasak menu khas nusantara.", status: "UPCOMING", type: "TEAM", category: "Kuliner", venue: "Dapur Kompetisi Lt.1", order: 6 },
     { name: "Tari Tradisional", slug: "tari-tradisional", description: "Pertunjukan tari tradisional nusantara.", status: "COMPLETED", type: "TEAM", category: "Seni Budaya", venue: "Panggung Utama Outdoor", order: 7 },
     { name: "Fotografi", slug: "fotografi", description: "Lomba fotografi bertema event.", status: "ONGOING", type: "INDIVIDUAL", category: "Kreatif", venue: "Seluruh Area Event", order: 8 },
   ];

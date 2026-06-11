@@ -22,6 +22,7 @@ export default function AdminPengaturanPage() {
     name:"", description:"", location:"", startDate:"", endDate:"",
     status:"UPCOMING", themeColor:"#0891B2",
     pointFirst:100, pointSecond:70, pointThird:40,
+    igLiveUrl:"", isIgLiveActive:false,
   });
   // Seksi state
   const [sections, setSections] = useState<Section[]>([]);
@@ -45,6 +46,7 @@ export default function AdminPengaturanPage() {
         endDate: new Date(data.endDate).toISOString().slice(0,16),
         status: data.status||"UPCOMING", themeColor: data.themeColor||"#0891B2",
         pointFirst: ps?.first||100, pointSecond: ps?.second||70, pointThird: ps?.third||40,
+        igLiveUrl: ps?.igLiveUrl||"", isIgLiveActive: ps?.isIgLiveActive||false,
       });
       setSections(Array.isArray(secs)?secs:[]);
       setSponsors(Array.isArray(spon)?spon:[]);
@@ -104,7 +106,7 @@ export default function AdminPengaturanPage() {
     setSaving(true);
     try {
       const r = await fetch("/api/event", { method:"PUT", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ ...form, pointSystem:{first:form.pointFirst,second:form.pointSecond,third:form.pointThird} }) });
+        body: JSON.stringify({ ...form, pointSystem:{first:form.pointFirst,second:form.pointSecond,third:form.pointThird, igLiveUrl:form.igLiveUrl, isIgLiveActive:form.isIgLiveActive} }) });
       if(!r.ok) throw new Error();
       toast.success("Pengaturan disimpan!");
     } catch { toast.error("Gagal menyimpan"); }
@@ -150,7 +152,7 @@ export default function AdminPengaturanPage() {
       if(!r.ok) throw new Error();
       const created = await r.json();
       setSponsors(prev=>[...prev, created]);
-      setNewSponsor({ name:"", tier:"REGULAR", logoUrl:"" });
+      setNewSponsor({ name:"", tier:"REGULAR", logoUrl:"", displayStyle:"TEXT_AND_LOGO" });
       toast.success("Sponsor ditambahkan!");
     } catch { toast.error("Gagal menambahkan"); }
   };
@@ -213,6 +215,19 @@ export default function AdminPengaturanPage() {
               </div>
               <div><label className={lbl}>Tanggal Mulai</label><input type="datetime-local" value={form.startDate} onChange={e=>setForm({...form,startDate:e.target.value})} className={inp}/></div>
               <div><label className={lbl}>Tanggal Selesai</label><input type="datetime-local" value={form.endDate} onChange={e=>setForm({...form,endDate:e.target.value})} className={inp}/></div>
+              <div className="sm:col-span-2 border-t-2 border-[#E7E5E4] pt-4 mt-2">
+                <h3 className="text-[#1C1917] font-black mb-3">🔴 Live Instagram</h3>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" id="igLiveActive" checked={form.isIgLiveActive} onChange={e=>setForm({...form,isIgLiveActive:e.target.checked})} className="w-5 h-5 rounded-[4px] border-[2px] border-[#1C1917] bg-[#FFFBEB] cursor-pointer"/>
+                    <label htmlFor="igLiveActive" className="text-[#1C1917] text-sm font-black cursor-pointer">Aktifkan Pemberitahuan Live IG</label>
+                  </div>
+                  <div>
+                    <label className={lbl}>URL Instagram Live / Profil</label>
+                    <input value={form.igLiveUrl} onChange={e=>setForm({...form,igLiveUrl:e.target.value})} placeholder="https://instagram.com/akun_ig" className={inp}/>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           <div className="neu-card-sand p-6">
@@ -228,7 +243,7 @@ export default function AdminPengaturanPage() {
               ].map(({ label, key, bg, border }) => (
                 <div key={key} className="text-center">
                   <label className="block text-[#1C1917] text-xs font-black mb-2">{label}</label>
-                  <input id={`${key}-input`} type="number" value={form[key as keyof typeof form]}
+                  <input id={`${key}-input`} type="number" value={form[key as keyof typeof form] as number}
                     onChange={e=>setForm({...form,[key]:parseInt(e.target.value)||0})}
                     className="w-full border-[3px] border-[#1C1917] rounded-[6px] px-4 py-3 text-[#1C1917] text-2xl font-black text-center focus:outline-none stat-number"
                     style={{ background:bg, boxShadow:`3px 3px 0 ${border}` }}/>
