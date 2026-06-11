@@ -39,6 +39,21 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       },
     });
 
+    // Update participant team/part id if provided
+    if (Array.isArray(body.participants) && body.participants.length > 0) {
+      await Promise.all(
+        body.participants.map((p: any) =>
+          prisma.matchParticipant.update({
+            where: { id: p.id },
+            data: {
+              teamId: p.teamId !== undefined ? p.teamId : undefined,
+              participantId: p.participantId !== undefined ? p.participantId : undefined,
+            },
+          })
+        )
+      );
+    }
+
     // Update scores if provided
     if (Array.isArray(body.scores) && body.scores.length > 0) {
       await Promise.all(

@@ -10,7 +10,7 @@ import { cn, getStatusColor, getStatusLabel, formatDateTime, formatTime, getMeda
 interface Participant { id: string; name: string; section: string | null; }
 interface Team { id: string; name: string; section: string | null; seedNumber: number | null; members: Array<{ participant: Participant; role: string }>; rankings: Array<{ position: number; points: number; wins: number; losses: number; draws: number }>; }
 interface MatchParticipant { score: number; result: string | null; team: { name: string } | null; participant: { name: string } | null; }
-interface Match { id: string; name: string; round: string | null; scheduledAt: Date | string | null; venue: string | null; status: string; participants: MatchParticipant[]; }
+interface Match { id: string; name: string; round: string | null; scheduledAt: Date | string | null; venue: string | null; status: string; bracketSlot?: number | null; participants: MatchParticipant[]; }
 interface Champion { position: number; section: string | null; team: { name: string } | null; participant: { name: string } | null; awardPoints: number; }
 interface Media { id: string; url: string; title: string | null; type: string; }
 interface Announcement { id: string; title: string; content: string; type: string; publishedAt: Date | string; }
@@ -28,14 +28,28 @@ interface Competition {
 export default function CompetitionDetailClient({ competition }: { competition: Competition }) {
   const [activeTab, setActiveTab] = useState("overview");
 
-  const tabs = [
+  const baseTabs = [
     { id: "overview", label: "Overview", icon: Trophy },
     { id: "peserta", label: "Peserta", icon: Users },
     { id: "jadwal", label: "Jadwal & Hasil", icon: Calendar },
-    ...(competition.format === "BRACKET" ? [{ id: "bagan", label: "Bagan Bracket", icon: Swords }] : []),
-    { id: "ranking", label: "Ranking", icon: Swords },
-    { id: "galeri", label: "Galeri", icon: Image },
-    { id: "pengumuman", label: "Info", icon: Megaphone },
+  ];
+
+  let formatTabs: any[] = [];
+  if (competition.format === "BRACKET") {
+    formatTabs = [{ id: "bracket", label: "Bracket", icon: Swords }];
+  } else if (competition.format === "GROUP_STAGE") {
+    formatTabs = [
+      { id: "fase-grup", label: "Fase Grup", icon: Users },
+      { id: "bracket", label: "Bracket", icon: Swords }
+    ];
+  } else if (competition.format === "TIME_TRIAL") {
+    formatTabs = [{ id: "ranking", label: "Ranking", icon: Trophy }];
+  }
+
+  const tabs = [
+    ...baseTabs,
+    ...formatTabs,
+    { id: "info", label: "Info", icon: Megaphone },
   ];
 
   return (
@@ -319,68 +333,92 @@ export default function CompetitionDetailClient({ competition }: { competition: 
               </div>
             )}
 
-            {/* BAGAN */}
-            {activeTab === "bagan" && competition.format === "BRACKET" && (
+            {/* BRACKET */}
+            {activeTab === "bracket" && ["BRACKET", "GROUP_STAGE"].includes(competition.format) && (
               <div className="glass rounded-xl p-5 overflow-x-auto">
                 {(() => {
-                  const ROUND_NAMES: Record<number, string> = { 2:"Final", 4:"Semifinal", 8:"Perempat Final", 16:"16 Besar", 32:"32 Besar" };
                   const cfg = competition.config ? JSON.parse(competition.config) : {};
                   const bracketSize: number = cfg.bracketSize || 8;
                   const thirdPlace: boolean = cfg.thirdPlace ?? true;
-                  const rounds: string[] = [];
+                  
+                  const rounds: number[] = [];
                   let r = bracketSize;
-                  while (r >= 2) { rounds.push(ROUND_NAMES[r] || `${r} Besar`); r = r/2; }
-                  if (thirdPlace) rounds.push("Perebutan Juara 3");
+                  while (r >= 2) { rounds.push(r); r /= 2; }
 
-                  const matchesByRound: Record<string, Match[]> = {};
-                  for (const round of rounds) matchesByRound[round] = [];
-                  for (const m of competition.matches) {
-                    const rnd = m.round || "Lainnya";
-                    if (!matchesByRound[rnd]) matchesByRound[rnd] = [];
-                    matchesByRound[rnd].push(m);
-                  }
+                  const matchBySlot = new Map<number, Match>();
+                  competition.matches.forEach(m => { if (m.bracketSlot) matchBySlot.set(m.bracketSlot, m); });
+
+                  const renderMatchCard = (m: Match | undefined) => {
+                    if (!m) return <div className="w-[180px] h-[64px] bg-gray-50 border-2 border-dashed border-gray-300 rounded-[6px] flex items-center justify-center text-[10px] text-gray-400 font-bold">Slot Kosong</div>;
+                    
+                    const pA = m.participants[0];
+                    const pB = m.participants[1];
+                    const nA = pA?.team?.name || pA?.participant?.name || "TBD";
+                    const nB = pB?.team?.name || pB?.participant?.name || "TBD";
+
+                    return (
+                      <div className={`w-[180px] rounded-[6px] border-[2px] border-[#1C1917] bg-white overflow-hidden ${m.status==="COMPLETED"?"shadow-[2px_2px_0_#10B981]":"shadow-[2px_2px_0_#D4D0CA]"} relative z-10`}>
+                        <div className={`flex items-center justify-between px-2 py-1.5 border-b-2 border-[#E7E5E4] ${pA?.result==="WIN"?"bg-[#ECFDF5]":""}`}>
+                          <span className={`text-[11px] font-black truncate max-w-[120px] ${pA?.result==="WIN"?"text-[#10B981]":pA?.result==="LOSE"?"text-black":"text-[#1C1917]"}`}>{nA}</span>
+                          <span className={`text-xs font-black stat-number ${pA?.result==="WIN"?"text-[#10B981]":"text-[#1C1917]"}`}>{m.status==="COMPLETED" ? pA?.score??0 : "-"}</span>
+                        </div>
+                        <div className={`flex items-center justify-between px-2 py-1.5 ${pB?.result==="WIN"?"bg-[#ECFDF5]":""}`}>
+                          <span className={`text-[11px] font-black truncate max-w-[120px] ${pB?.result==="WIN"?"text-[#10B981]":pB?.result==="LOSE"?"text-black":"text-[#1C1917]"}`}>{nB}</span>
+                          <span className={`text-xs font-black stat-number ${pB?.result==="WIN"?"text-[#10B981]":"text-[#1C1917]"}`}>{m.status==="COMPLETED" ? pB?.score??0 : "-"}</span>
+                        </div>
+                      </div>
+                    );
+                  };
+
+                  const BracketNode = ({ slot, roundIndex }: { slot: number, roundIndex: number }) => {
+                    const isFirstRound = roundIndex === 0;
+                    const match = matchBySlot.get(slot);
+                    
+                    return (
+                      <div className="flex items-center">
+                        {!isFirstRound && (
+                          <div className="flex flex-col justify-center relative">
+                            <div className="absolute right-0 top-[25%] bottom-[25%] w-[16px] border-r-[2px] border-t-[2px] border-b-[2px] border-[#1C1917] rounded-r-[4px]" />
+                            <div className="flex flex-col gap-y-4 pr-4">
+                              <BracketNode slot={2 * slot - bracketSize - 1} roundIndex={roundIndex - 1} />
+                              <BracketNode slot={2 * slot - bracketSize} roundIndex={roundIndex - 1} />
+                            </div>
+                          </div>
+                        )}
+                        <div className="relative pl-4">
+                          {!isFirstRound && (
+                            <div className="absolute left-0 top-1/2 w-[16px] h-[2px] bg-[#1C1917] -translate-y-1/2" />
+                          )}
+                          {renderMatchCard(match)}
+                        </div>
+                      </div>
+                    );
+                  };
+
+                  const finalSlot = bracketSize - 1;
 
                   return (
-                    <div className="flex gap-4 min-w-max pb-4">
-                      {rounds.map((rnd, ri) => (
-                        <div key={rnd} className="flex flex-col gap-3" style={{width:"220px"}}>
-                          <div className={`text-center py-2 px-3 rounded-[6px] border-[2.5px] font-black text-sm ${ri===0?"border-[#1C1917] bg-[#0891B2] text-white shadow-[3px_3px_0_#1C1917]":"border-[#D4D0CA] bg-[#F5F5F4] text-[#1C1917]"}`}>
-                            {rnd}
-                          </div>
-                          <div className="space-y-4 flex-1">
-                            {(matchesByRound[rnd]||[]).map(m=>{
-                              const pA=m.participants[0]; const pB=m.participants[1];
-                              const nA=pA?.team?.name||pA?.participant?.name||"TBD";
-                              const nB=pB?.team?.name||pB?.participant?.name||"TBD";
-                              return (
-                                <div key={m.id} className={`rounded-[6px] border-[2.5px] border-[#1C1917] bg-white overflow-hidden ${m.status==="COMPLETED"?"shadow-[3px_3px_0_#10B981]":"shadow-[3px_3px_0_#D4D0CA]"}`}>
-                                  <div className={`flex items-center justify-between px-3 py-2 border-b-2 border-[#E7E5E4] ${pA?.result==="WIN"?"bg-[#ECFDF5]":""}`}>
-                                    <span className={`text-xs font-black truncate max-w-[120px] ${pA?.result==="WIN"?"text-[#10B981]":pA?.result==="LOSE"?"text-black":"text-[#1C1917]"}`}>{nA}</span>
-                                    <span className={`text-sm font-black stat-number ${pA?.result==="WIN"?"text-[#10B981]":"text-[#1C1917]"}`}>{m.status==="COMPLETED" ? pA?.score??0 : "-"}</span>
-                                  </div>
-                                  <div className={`flex items-center justify-between px-3 py-2 ${pB?.result==="WIN"?"bg-[#ECFDF5]":""}`}>
-                                    <span className={`text-xs font-black truncate max-w-[120px] ${pB?.result==="WIN"?"text-[#10B981]":pB?.result==="LOSE"?"text-black":"text-[#1C1917]"}`}>{nB}</span>
-                                    <span className={`text-sm font-black stat-number ${pB?.result==="WIN"?"text-[#10B981]":"text-[#1C1917]"}`}>{m.status==="COMPLETED" ? pB?.score??0 : "-"}</span>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                            {(matchesByRound[rnd]||[]).length===0 && (
-                              <div className="p-4 text-center text-black text-xs font-semibold border-2 border-dashed border-[#D4D0CA] rounded-[6px]">
-                                Belum ada pertandingan
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                    <div className="overflow-x-auto pb-4 pt-2">
+                      <div className="min-w-max flex gap-6">
+                        <BracketNode slot={finalSlot} roundIndex={rounds.length - 1} />
+                        
+                        {thirdPlace && (
+                           <div className="ml-8 border-l-[3px] border-dashed border-[#E7E5E4] pl-8 flex flex-col justify-center">
+                             <h3 className="text-[10px] font-black text-[#1C1917] uppercase tracking-wider mb-2 bg-[#FFFBEB] px-2 py-0.5 border-[2px] border-[#1C1917] shadow-[2px_2px_0_#1C1917] inline-block rounded-[4px]">
+                               Perebutan Juara 3
+                             </h3>
+                             {renderMatchCard(matchBySlot.get(bracketSize))}
+                           </div>
+                        )}
+                      </div>
                     </div>
                   );
                 })()}
               </div>
             )}
 
-            {/* RANKING */}
-            {activeTab === "ranking" && (
+            {/* FASE GRUP & RANKING */}
+            {(activeTab === "ranking" || activeTab === "fase-grup") && (
               <div>
                 {competition.rankings.length === 0 ? (
                   <div className="glass rounded-xl p-10 text-center text-black">Belum ada data ranking</div>
@@ -419,34 +457,8 @@ export default function CompetitionDetailClient({ competition }: { competition: 
               </div>
             )}
 
-            {/* GALERI */}
-            {activeTab === "galeri" && (
-              <div>
-                {competition.media.length === 0 ? (
-                  <div className="glass rounded-xl p-16 text-center">
-                    <div className="text-4xl mb-3">📷</div>
-                    <p className="text-black">Belum ada galeri</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {competition.media.map((item) => (
-                      <div key={item.id} className="aspect-video rounded-xl overflow-hidden glass group cursor-pointer">
-                        {item.type === "IMAGE" ? (
-                          <img src={item.url} alt={item.title || ""} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <span className="text-4xl">▶️</span>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* PENGUMUMAN / INFO */}
-            {activeTab === "pengumuman" && (
+            {/* INFO */}
+            {activeTab === "info" && (
               <div className="space-y-3">
                 {competition.announcements.length === 0 ? (
                   <div className="glass rounded-xl p-10 text-center text-black">Belum ada info</div>

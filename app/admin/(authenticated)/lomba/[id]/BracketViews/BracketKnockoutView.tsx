@@ -1,59 +1,76 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
-import { Plus, Pencil, Check, X, Trash2 } from "lucide-react";
+import { Plus, Check, X, Pencil, Trash2, RefreshCw } from "lucide-react";
 import { Competition } from "../page";
 import { Match, TeamOrPart } from "../TabBracket";
 
-const ROUND_NAMES: Record<number, string> = { 2:"Final", 4:"Semifinal", 8:"Perempat Final", 16:"16 Besar", 32:"32 Besar" };
+const ROUND_NAMES: Record<number, string> = { 2:"Final", 4:"Semifinal", 8:"Perempat Final", 16:"16 Besar", 32:"32 Besar", 64:"64 Besar" };
 
 export default function BracketKnockoutView({ comp, matches, teams, onRefresh }: { comp:Competition; matches:Match[]; teams:TeamOrPart[]; onRefresh:()=>void }) {
   const cfg = comp.config ? JSON.parse(comp.config) : {};
   const bracketSize: number = cfg.bracketSize || 8;
   const thirdPlace: boolean = cfg.thirdPlace ?? true;
-
-  const [showAdd, setShowAdd] = useState(false);
-  const [addRound, setAddRound] = useState("");
-  const [p1, setP1] = useState(""); const [p2, setP2] = useState("");
-  const [sched, setSched] = useState(""); const [venue, setVenue] = useState("");
-  const [scoring, setScoring] = useState<string|null>(null);
-  const [scores, setScores] = useState<Record<string,number>>({});
-  const [saving, setSaving] = useState(false);
-
   const isTeam = comp.type==="TEAM"||comp.type==="DUO";
 
-  // Build rounds from bracketSize: bracketSize -> bracketSize/2 -> ... -> 2
-  const rounds: string[] = [];
+  const [saving, setSaving] = useState(false);
+  const [scoring, setScoring] = useState<string|null>(null);
+  const [scores, setScores] = useState<Record<string,number>>({});
+  
+  // Edit team mode
+  const [editingTeam, setEditingTeam] = useState<{matchId:string, participantIndex:number, currentTeamId:string|null}|null>(null);
+
+  // Rounds logic
+  const rounds: number[] = [];
   let r = bracketSize;
-  while (r >= 2) { rounds.push(ROUND_NAMES[r] || `${r} Besar`); r = r/2; }
-  if (thirdPlace) rounds.push("Perebutan Juara 3");
+  while (r >= 2) { rounds.push(r); r /= 2; }
 
-  const matchesByRound: Record<string, Match[]> = {};
-  for (const round of rounds) matchesByRound[round] = [];
-  for (const m of matches) {
-    const rnd = m.round || "Lainnya";
-    if (!matchesByRound[rnd]) matchesByRound[rnd] = [];
-    matchesByRound[rnd].push(m);
-  }
-
-  const handleAddMatch = async () => {
-    if (!addRound || !p1) { toast.error("Lengkapi data"); return; }
+  const handleGenerate = async () => {
+    if (!confirm(`Generate bagan otomatis untuk ${bracketSize} tim?`)) return;
     setSaving(true);
-    const pArr: any[] = [{ [isTeam?"teamId":"participantId"]: p1 }];
-    if (p2) pArr.push({ [isTeam?"teamId":"participantId"]: p2 });
-    const n1 = teams.find(t=>t.id===p1)?.name||"TBD";
-    const n2 = p2 ? (teams.find(t=>t.id===p2)?.name||"TBD") : "TBD";
-    await fetch("/api/matches",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-      competitionId:comp.id, name:`${n1} vs ${n2}`, round:addRound, stage:"KNOCKOUT",
-      scheduledAt:sched||null, venue:venue||null, participants:pArr,
-    })});
-    toast.success("Pertandingan ditambahkan!");
-    setShowAdd(false); setP1(""); setP2(""); setSched(""); setVenue("");
-    setSaving(false); onRefresh();
+    try {
+      // Create bracket matches
+      let slot = 1;
+      for (const rSize of rounds) {
+        const matchCount = rSize / 2;
+        const roundName = ROUND_NAMES[rSize] || `${rSize} Besar`;
+        for (let i = 0; i < matchCount; i++) {
+          await fetch("/api/matches", {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({
+              competitionId: comp.id,
+              name: `${roundName} - Match ${i+1}`,
+              round: roundName,
+              stage: "KNOCKOUT",
+              bracketSlot: slot++,
+              participants: [{ teamId: null, participantId: null }, { teamId: null, participantId: null }]
+            })
+          });
+        }
+      }
+      if (thirdPlace) {
+        await fetch("/api/matches", {
+          method: "POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({
+            competitionId: comp.id,
+            name: "Perebutan Juara 3",
+            round: "Perebutan Juara 3",
+            stage: "KNOCKOUT",
+            bracketSlot: slot++,
+            participants: [{ teamId: null, participantId: null }, { teamId: null, participantId: null }]
+          })
+        });
+      }
+      toast.success("Bagan berhasil dibuat!");
+      onRefresh();
+    } catch { toast.error("Gagal membuat bagan"); }
+    finally { setSaving(false); }
   };
 
   const handleSaveScore = async (m: Match) => {
-    if (m.participants.length < 2) { toast.error("Pertandingan perlu 2 peserta"); return; }
+    if (m.participants.length < 2) return;
     setSaving(true);
     const sA = scores[m.participants[0].id]??m.participants[0].score??0;
     const sB = scores[m.participants[1].id]??m.participants[1].score??0;
@@ -66,149 +83,185 @@ export default function BracketKnockoutView({ comp, matches, teams, onRefresh }:
     setSaving(false); onRefresh();
   };
 
-  const handleDelete = async (id:string) => {
-    if (!confirm("Hapus?")) return;
-    await fetch(`/api/matches/${id}`,{method:"DELETE"});
-    toast.success("Dihapus"); onRefresh();
+  const handleUpdateTeam = async (matchId: string, participantId: string, newTeamId: string) => {
+    setSaving(true);
+    try {
+      const payloadParticipants = [
+        { id: participantId, [isTeam ? "teamId" : "participantId"]: newTeamId || null }
+      ];
+      await fetch(`/api/matches/${matchId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participants: payloadParticipants })
+      });
+      toast.success("Tim diperbarui!");
+      setEditingTeam(null);
+      onRefresh();
+    } catch { toast.error("Gagal memperbarui"); }
+    finally { setSaving(false); }
   };
 
-  const lbl = "block text-xs font-black text-[#1C1917] mb-1 uppercase tracking-wider";
+  const handleDeleteAll = async () => {
+    if (!confirm("Hapus seluruh bagan? Ini akan menghapus semua pertandingan.")) return;
+    setSaving(true);
+    try {
+      for (const m of matches) await fetch(`/api/matches/${m.id}`, { method: "DELETE" });
+      toast.success("Bagan dihapus");
+      onRefresh();
+    } catch { toast.error("Gagal menghapus"); }
+    finally { setSaving(false); }
+  };
+
+  if (matches.length === 0) {
+    return (
+      <div className="neu-card p-12 text-center flex flex-col items-center justify-center">
+        <h2 className="text-xl font-black text-[#1C1917] mb-2">Bagan Belum Dibuat</h2>
+        <p className="text-sm font-bold text-gray-600 mb-6">Sistem akan meng-generate {bracketSize} slot otomatis sesuai pengaturan format.</p>
+        <button onClick={handleGenerate} disabled={saving} className="btn-neon px-6 py-3 flex items-center gap-2">
+          {saving ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
+          Generate Bagan ({bracketSize} Tim)
+        </button>
+      </div>
+    );
+  }
+
+  // Organize matches by bracketSlot
+  const matchBySlot = useMemo(() => {
+    const map = new Map<number, Match>();
+    matches.forEach(m => { if (m.bracketSlot) map.set(m.bracketSlot, m); });
+    return map;
+  }, [matches]);
+
+  const renderMatchCard = (m: Match | undefined) => {
+    if (!m) return <div className="w-[200px] h-[80px] bg-gray-100 border-2 border-dashed border-gray-300 rounded-[6px] flex items-center justify-center text-xs text-gray-400 font-bold">Slot Kosong</div>;
+    
+    const pA = m.participants[0];
+    const pB = m.participants[1];
+    const tA_id = pA?.teamId || pA?.participantId;
+    const tB_id = pB?.teamId || pB?.participantId;
+    const nA = pA?.team?.name || pA?.participant?.name || "TBD";
+    const nB = pB?.team?.name || pB?.participant?.name || "TBD";
+    
+    const isScoring = scoring === m.id;
+
+    return (
+      <div className={`w-[200px] rounded-[6px] border-[2.5px] border-[#1C1917] bg-white overflow-hidden ${m.status==="COMPLETED"?"shadow-[3px_3px_0_#10B981]":"shadow-[3px_3px_0_#D4D0CA]"} z-10 relative`}>
+        {/* Team A */}
+        <div className={`flex items-center justify-between px-2 py-1.5 border-b-2 border-[#E7E5E4] ${pA?.result==="WIN"?"bg-[#ECFDF5]":""} group`}>
+          {editingTeam?.matchId === m.id && editingTeam.participantIndex === 0 ? (
+            <select autoFocus onBlur={()=>setEditingTeam(null)} onChange={(e)=>handleUpdateParticipant(m.id, pA.id, e.target.value)} value={tA_id||""} className="text-xs font-bold bg-white border border-[#1C1917] rounded w-full">
+              <option value="">TBD</option>
+              {teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          ) : (
+            <span onClick={()=>setEditingTeam({matchId:m.id, participantIndex:0, currentTeamId:tA_id||null})} className={`text-xs font-black truncate max-w-[120px] cursor-pointer hover:text-[#0891B2] ${pA?.result==="WIN"?"text-[#10B981]":pA?.result==="LOSE"?"text-black":"text-[#1C1917]"}`}>{nA}</span>
+          )}
+          {isScoring ? (
+            <input type="number" value={scores[pA?.id]??pA?.score??0} onChange={e=>setScores({...scores,[pA.id]:Number(e.target.value)})} className="w-10 text-center text-xs font-black border-2 border-[#1C1917] rounded-[3px] py-0.5 bg-[#FFFBEB]"/>
+          ) : (
+            <span className={`text-sm font-black stat-number ${pA?.result==="WIN"?"text-[#10B981]":"text-[#1C1917]"}`}>{m.status==="COMPLETED" ? pA?.score??0 : "-"}</span>
+          )}
+        </div>
+        {/* Team B */}
+        <div className={`flex items-center justify-between px-2 py-1.5 ${pB?.result==="WIN"?"bg-[#ECFDF5]":""} group`}>
+          {editingTeam?.matchId === m.id && editingTeam.participantIndex === 1 ? (
+            <select autoFocus onBlur={()=>setEditingTeam(null)} onChange={(e)=>handleUpdateParticipant(m.id, pB.id, e.target.value)} value={tB_id||""} className="text-xs font-bold bg-white border border-[#1C1917] rounded w-full">
+              <option value="">TBD</option>
+              {teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          ) : (
+            <span onClick={()=>setEditingTeam({matchId:m.id, participantIndex:1, currentTeamId:tB_id||null})} className={`text-xs font-black truncate max-w-[120px] cursor-pointer hover:text-[#0891B2] ${pB?.result==="WIN"?"text-[#10B981]":pB?.result==="LOSE"?"text-black":"text-[#1C1917]"}`}>{nB}</span>
+          )}
+          {isScoring ? (
+            <input type="number" value={scores[pB?.id]??pB?.score??0} onChange={e=>setScores({...scores,[pB.id]:Number(e.target.value)})} className="w-10 text-center text-xs font-black border-2 border-[#1C1917] rounded-[3px] py-0.5 bg-[#FFFBEB]"/>
+          ) : (
+            <span className={`text-sm font-black stat-number ${pB?.result==="WIN"?"text-[#10B981]":"text-[#1C1917]"}`}>{m.status==="COMPLETED" ? pB?.score??0 : "-"}</span>
+          )}
+        </div>
+        {/* Actions overlay when hovered */}
+        <div className="absolute top-0 right-0 h-full flex flex-col justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity pr-1">
+           {isScoring ? (
+              <div className="bg-white border-2 border-[#1C1917] rounded-[4px] p-0.5 flex flex-col gap-1 shadow-[2px_2px_0_#1C1917]">
+                <button onClick={()=>handleSaveScore(m)} className="text-[#10B981] hover:bg-[#ECFDF5] p-1"><Check className="w-3 h-3"/></button>
+                <button onClick={()=>{setScoring(null);setScores({});}} className="text-red-500 hover:bg-red-50 p-1"><X className="w-3 h-3"/></button>
+              </div>
+           ) : (
+              <div className="bg-white border-2 border-[#1C1917] rounded-[4px] p-0.5 flex flex-col gap-1 shadow-[2px_2px_0_#1C1917] z-20 absolute right-[-10px]">
+                {m.status!=="COMPLETED"&&(
+                  <button onClick={()=>{setScoring(m.id);const s:Record<string,number>={};m.participants.forEach(p=>s[p.id]=p.score);setScores(s);}} className="text-[#0891B2] hover:bg-[#ECFEFF] p-1"><Pencil className="w-3 h-3"/></button>
+                )}
+              </div>
+           )}
+        </div>
+      </div>
+    );
+  };
+
+  const handleUpdateParticipant = (matchId: string, partId: string, teamId: string) => {
+     handleUpdateTeam(matchId, partId, teamId);
+  }
+
+  // Draw recursive node
+  const BracketNode = ({ slot, roundIndex }: { slot: number, roundIndex: number }) => {
+    const isFirstRound = roundIndex === 0;
+    const match = matchBySlot.get(slot);
+    
+    return (
+      <div className="flex items-center">
+        {/* Children (Previous round matches) */}
+        {!isFirstRound && (
+          <div className="flex flex-col justify-center relative">
+            {/* Connecting bracket line */}
+            <div className="absolute right-0 top-[25%] bottom-[25%] w-[20px] border-r-[2.5px] border-t-[2.5px] border-b-[2.5px] border-[#1C1917] rounded-r-[6px]" />
+            <div className="flex flex-col gap-y-6 pr-5">
+              <BracketNode slot={2 * slot - bracketSize - 1} roundIndex={roundIndex - 1} />
+              <BracketNode slot={2 * slot - bracketSize} roundIndex={roundIndex - 1} />
+            </div>
+          </div>
+        )}
+
+        {/* Current Match */}
+        <div className="relative pl-5">
+          {!isFirstRound && (
+            <div className="absolute left-0 top-1/2 w-[20px] h-[2.5px] bg-[#1C1917] -translate-y-1/2" />
+          )}
+          {renderMatchCard(match)}
+        </div>
+      </div>
+    );
+  };
+
+  // The root slot is the Final match.
+  // Number of matches = bracketSize - 1. So the Final is slot (bracketSize - 1).
+  const finalSlot = bracketSize - 1;
 
   return (
-    <div className="space-y-6">
-      {/* Bracket info bar */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex gap-2 flex-wrap">
-          {rounds.map(rnd=>(
-            <span key={rnd} className="px-3 py-1 text-xs font-black rounded-[4px] border-2 border-[#1C1917] bg-white shadow-[2px_2px_0_#1C1917]">
-              {rnd} <span className="text-[#0891B2]">({matchesByRound[rnd]?.length||0})</span>
-            </span>
-          ))}
-        </div>
-        <button onClick={()=>setShowAdd(!showAdd)} className="ml-auto btn-neon px-4 py-2 text-xs flex items-center gap-1.5">
-          <Plus className="w-3.5 h-3.5"/> Tambah Pertandingan
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button onClick={handleDeleteAll} disabled={saving} className="neu-btn neu-btn-white text-xs px-4 py-2 text-red-600 border-red-600 shadow-[2px_2px_0_#DC2626] hover:shadow-[1px_1px_0_#DC2626]">
+          <Trash2 className="w-3.5 h-3.5 inline mr-1"/> Hapus Bagan
         </button>
       </div>
 
-      {/* Add match form */}
-      {showAdd && (
-        <div className="neu-card p-4 space-y-3">
-          <div className="grid sm:grid-cols-3 gap-3">
-            <div>
-              <label className={lbl}>Babak</label>
-              <select value={addRound} onChange={e=>setAddRound(e.target.value)} className="neu-input text-sm">
-                <option value="">-- Pilih Babak --</option>
-                {rounds.map(r=><option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={lbl}>Peserta 1</label>
-              <select value={p1} onChange={e=>setP1(e.target.value)} className="neu-input text-sm">
-                <option value="">-- Pilih --</option>
-                {teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
-                <option value="TBD">TBD (pemenang dari babak sebelumnya)</option>
-              </select>
-            </div>
-            <div>
-              <label className={lbl}>Peserta 2</label>
-              <select value={p2} onChange={e=>setP2(e.target.value)} className="neu-input text-sm">
-                <option value="">-- Pilih / TBD --</option>
-                {teams.filter(t=>t.id!==p1).map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={lbl}>Tanggal & Jam</label>
-              <input type="datetime-local" value={sched} onChange={e=>setSched(e.target.value)} className="neu-input text-sm"/>
-            </div>
-            <div>
-              <label className={lbl}>Venue</label>
-              <input value={venue} onChange={e=>setVenue(e.target.value)} className="neu-input text-sm" placeholder="Lapangan A..."/>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={handleAddMatch} disabled={saving} className="btn-neon px-4 py-2 text-xs disabled:opacity-50">{saving?"...":"Tambah"}</button>
-            <button onClick={()=>setShowAdd(false)} className="px-4 py-2 text-xs font-black border-2 border-[#D4D0CA] rounded-[4px] text-white">Batal</button>
-          </div>
+      <div className="overflow-x-auto pb-8 pt-4">
+        <div className="min-w-max flex gap-8">
+          {/* Main Championship Bracket */}
+          <BracketNode slot={finalSlot} roundIndex={rounds.length - 1} />
+          
+          {/* Third Place Match (if applicable) */}
+          {thirdPlace && (
+             <div className="ml-12 border-l-4 border-dashed border-[#E7E5E4] pl-12 flex flex-col justify-center">
+               <h3 className="text-xs font-black text-[#1C1917] uppercase tracking-wider mb-3 bg-[#FFFBEB] px-3 py-1 border-[2.5px] border-[#1C1917] shadow-[2px_2px_0_#1C1917] inline-block rounded-[4px]">
+                 Perebutan Juara 3
+               </h3>
+               {renderMatchCard(matchBySlot.get(bracketSize))}
+             </div>
+          )}
         </div>
-      )}
-
-      {/* Rounds — visual bracket column layout */}
-      <div className="overflow-x-auto">
-        <div className="flex gap-4 min-w-max pb-2">
-          {rounds.map((rnd,ri)=>(
-            <div key={rnd} className="flex flex-col gap-3" style={{width:"220px"}}>
-              {/* Round header */}
-              <div className={`text-center py-2 px-3 rounded-[6px] border-[2.5px] font-black text-sm ${ri===0?"border-[#1C1917] bg-[#0891B2] text-white shadow-[3px_3px_0_#1C1917]":"border-[#D4D0CA] bg-[#F5F5F4] text-[#1C1917]"}`}>
-                {rnd}
-              </div>
-
-              {/* Matches in this round */}
-              <div className="space-y-3 flex-1">
-                {(matchesByRound[rnd]||[]).map(m=>{
-                  const pA=m.participants[0]; const pB=m.participants[1];
-                  const nA=pA?.team?.name||pA?.participant?.name||"TBD";
-                  const nB=pB?.team?.name||pB?.participant?.name||"TBD";
-                  const isScoring = scoring===m.id;
-                  return (
-                    <div key={m.id} className={`rounded-[6px] border-[2.5px] border-[#1C1917] bg-white overflow-hidden ${m.status==="COMPLETED"?"shadow-[3px_3px_0_#10B981]":"shadow-[3px_3px_0_#D4D0CA]"}`}>
-                      {/* Team A */}
-                      <div className={`flex items-center justify-between px-3 py-2 border-b-2 border-[#E7E5E4] ${pA?.result==="WIN"?"bg-[#ECFDF5]":""}`}>
-                        <span className={`text-xs font-black truncate max-w-[120px] ${pA?.result==="WIN"?"text-[#10B981]":pA?.result==="LOSE"?"text-black":"text-[#1C1917]"}`}>{nA}</span>
-                        {isScoring ? (
-                          <input type="number" min={0} value={scores[pA?.id]??pA?.score??0}
-                            onChange={e=>setScores({...scores,[pA.id]:Number(e.target.value)})}
-                            className="w-12 text-center text-xs font-black border-2 border-[#1C1917] rounded-[3px] py-0.5 bg-[#FFFBEB]"/>
-                        ) : (
-                          <span className={`text-sm font-black stat-number ${pA?.result==="WIN"?"text-[#10B981]":"text-[#1C1917]"}`}>
-                            {m.status==="COMPLETED" ? pA?.score??0 : "-"}
-                          </span>
-                        )}
-                      </div>
-                      {/* Team B */}
-                      <div className={`flex items-center justify-between px-3 py-2 ${pB?.result==="WIN"?"bg-[#ECFDF5]":""}`}>
-                        <span className={`text-xs font-black truncate max-w-[120px] ${pB?.result==="WIN"?"text-[#10B981]":pB?.result==="LOSE"?"text-black":"text-[#1C1917]"}`}>{nB}</span>
-                        {isScoring ? (
-                          <input type="number" min={0} value={scores[pB?.id]??pB?.score??0}
-                            onChange={e=>setScores({...scores,[pB.id]:Number(e.target.value)})}
-                            className="w-12 text-center text-xs font-black border-2 border-[#1C1917] rounded-[3px] py-0.5 bg-[#FFFBEB]"/>
-                        ) : (
-                          <span className={`text-sm font-black stat-number ${pB?.result==="WIN"?"text-[#10B981]":"text-[#1C1917]"}`}>
-                            {m.status==="COMPLETED" ? pB?.score??0 : "-"}
-                          </span>
-                        )}
-                      </div>
-                      {/* Actions */}
-                      <div className="flex items-center justify-between px-3 py-1.5 bg-[#F5F5F4] border-t-2 border-[#E7E5E4]">
-                        {m.scheduledAt&&<span className="text-[10px] text-black font-semibold">{new Date(m.scheduledAt).toLocaleString("id-ID",{dateStyle:"short",timeStyle:"short"})}</span>}
-                        <div className="flex items-center gap-1 ml-auto">
-                          {isScoring ? (
-                            <>
-                              <button onClick={()=>handleSaveScore(m)} disabled={saving} className="p-1 rounded border border-[#10B981] text-[#10B981] hover:bg-[#ECFDF5] disabled:opacity-50"><Check className="w-3 h-3"/></button>
-                              <button onClick={()=>{setScoring(null);setScores({});}} className="p-1 rounded border border-[#D4D0CA] text-black"><X className="w-3 h-3"/></button>
-                            </>
-                          ) : (
-                            <>
-                              {m.status!=="COMPLETED"&&(
-                                <button onClick={()=>{setScoring(m.id);const s:Record<string,number>={};m.participants.forEach(p=>s[p.id]=p.score);setScores(s);}}
-                                  className="p-1 rounded border border-[#0891B2] text-[#0891B2] hover:bg-[#ECFEFF]"><Pencil className="w-3 h-3"/></button>
-                              )}
-                              <button onClick={()=>handleDelete(m.id)} className="p-1 rounded border border-transparent text-black hover:border-[#C2410C] hover:text-[#C2410C]"><Trash2 className="w-3 h-3"/></button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-                {(matchesByRound[rnd]||[]).length===0 && (
-                  <div className="p-4 text-center text-black text-xs font-semibold border-2 border-dashed border-[#D4D0CA] rounded-[6px]">
-                    Belum ada pertandingan
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+      </div>
+      
+      <div className="text-xs font-bold text-gray-500 mt-4 bg-gray-50 p-3 rounded border border-gray-200">
+        💡 <strong>Tips:</strong> Klik nama tim (TBD) di dalam bagan untuk memasukkan/mengganti tim. Arahkan kursor ke ujung kotak untuk mengubah skor.
       </div>
     </div>
   );
