@@ -78,8 +78,40 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     const full = await prisma.match.findUnique({
       where: { id },
-      include: { participants: { include: { team: true, participant: true } } },
+      include: { participants: { orderBy: { id: "asc" }, include: { team: true, participant: true } } },
     });
+
+    // Auto advance bracket winner
+    if (full && full.status === "COMPLETED" && full.bracketSlot) {
+      const competition = await prisma.competition.findUnique({ where: { id: match.competitionId } });
+      if (competition && ["BRACKET", "GROUP_STAGE"].includes(competition.format)) {
+        const cfg = competition.config ? JSON.parse(competition.config) : {};
+        const bracketSize = cfg.bracketSize || 8;
+        
+        const winner = full.participants.find(p => p.result === "WIN");
+        if (winner && full.bracketSlot < bracketSize - 1) { // If not final match
+          const parentSlot = Math.ceil((full.bracketSlot + bracketSize) / 2);
+          const isTopBranch = full.bracketSlot % 2 !== 0; // Odd slots go to top (index 0)
+          const participantIndex = isTopBranch ? 0 : 1;
+          
+          const parentMatch = await prisma.match.findFirst({
+            where: { competitionId: match.competitionId, bracketSlot: parentSlot },
+            include: { participants: { orderBy: { id: "asc" } } }
+          });
+          
+          if (parentMatch && parentMatch.participants[participantIndex]) {
+            await prisma.matchParticipant.update({
+              where: { id: parentMatch.participants[participantIndex].id },
+              data: {
+                teamId: winner.teamId,
+                participantId: winner.participantId,
+              }
+            });
+          }
+        }
+      }
+    }
+
     return NextResponse.json(full);
   } catch (e) {
     console.error(e);

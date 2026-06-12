@@ -91,6 +91,7 @@ export async function PUT(
         logoUrl: body.logoUrl,
         bannerUrl: body.bannerUrl,
         rules: body.rules,
+        config: body.config !== undefined ? body.config : undefined,
         maxParticipants: body.maxParticipants ? parseInt(body.maxParticipants) : undefined,
         order: body.order !== undefined ? parseInt(body.order) : undefined,
       },
