@@ -10,6 +10,7 @@ export function formatDate(date: string | Date, opts?: Intl.DateTimeFormatOption
     day: "numeric",
     month: "long",
     year: "numeric",
+    timeZone: "Asia/Jakarta",
     ...opts,
   });
 }
@@ -21,6 +22,7 @@ export function formatDateTime(date: string | Date) {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Asia/Jakarta",
   });
 }
 
@@ -28,6 +30,7 @@ export function formatTime(date: string | Date) {
   return new Date(date).toLocaleTimeString("id-ID", {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Asia/Jakarta",
   });
 }
 

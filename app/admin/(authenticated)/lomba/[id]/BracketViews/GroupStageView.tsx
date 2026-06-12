@@ -38,8 +38,6 @@ export default function GroupStageView({ comp, matches, teams, onRefresh }: { co
   const [addingMatch, setAddingMatch] = useState<string|null>(null);
   const [p1, setP1] = useState(""); const [p2, setP2] = useState("");
   const [sched, setSched] = useState(""); const [venue, setVenue] = useState("");
-  const [scoring, setScoring] = useState<string|null>(null);
-  const [scores, setScores] = useState<Record<string,number>>({});
   const [saving, setSaving] = useState(false);
 
   const teamsInGroup = (g:string) => teams.filter(t => t.groupName === g);
@@ -60,19 +58,6 @@ export default function GroupStageView({ comp, matches, teams, onRefresh }: { co
     })});
     toast.success("Pertandingan ditambahkan!");
     setAddingMatch(null); setP1(""); setP2(""); setSched(""); setVenue("");
-    setSaving(false); onRefresh();
-  };
-
-  const handleSaveScore = async (m:Match) => {
-    setSaving(true);
-    const sA = scores[m.participants[0]?.id] ?? m.participants[0]?.score ?? 0;
-    const sB = scores[m.participants[1]?.id] ?? m.participants[1]?.score ?? 0;
-    const payload = [
-      { id:m.participants[0].id, score:sA, result:sA>sB?"WIN":sA<sB?"LOSE":"DRAW" },
-      { id:m.participants[1].id, score:sB, result:sB>sA?"WIN":sB<sA?"LOSE":"DRAW" },
-    ];
-    await fetch(`/api/matches/${m.id}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ status:"COMPLETED", scores:payload }) });
-    toast.success("Skor disimpan!"); setScoring(null); setScores({});
     setSaving(false); onRefresh();
   };
 
@@ -241,23 +226,6 @@ export default function GroupStageView({ comp, matches, teams, onRefresh }: { co
                 const nB=pB?.team?.name||pB?.participant?.name||"TBD";
                 return (
                   <div key={m.id} className={`flex items-center gap-3 px-4 py-3 rounded-[6px] border-[2.5px] border-[#1C1917] bg-white ${m.status==="COMPLETED"?"shadow-[3px_3px_0_#10B981]":"shadow-[3px_3px_0_#D4D0CA]"}`}>
-                    {scoring===m.id ? (
-                      <div className="flex-1 flex items-center gap-3 flex-wrap">
-                        <span className="font-black text-sm text-[#1C1917]">{nA}</span>
-                        <input type="number" min={0} value={scores[pA?.id]??pA?.score??0}
-                          onChange={e=>setScores({...scores,[pA.id]:Number(e.target.value)})}
-                          className="w-16 text-center font-black border-[2.5px] border-[#1C1917] rounded-[4px] py-1 bg-[#FFFBEB]"/>
-                        <span className="text-black font-black">–</span>
-                        <input type="number" min={0} value={scores[pB?.id]??pB?.score??0}
-                          onChange={e=>setScores({...scores,[pB.id]:Number(e.target.value)})}
-                          className="w-16 text-center font-black border-[2.5px] border-[#1C1917] rounded-[4px] py-1 bg-[#FFFBEB]"/>
-                        <span className="font-black text-sm text-[#1C1917]">{nB}</span>
-                        <button onClick={()=>handleSaveScore(m)} disabled={saving}
-                          className="ml-auto p-1.5 rounded border-2 border-[#10B981] text-[#10B981] hover:bg-[#ECFDF5] disabled:opacity-50"><Check className="w-4 h-4"/></button>
-                        <button onClick={()=>{setScoring(null);setScores({});}} className="p-1.5 rounded border-2 border-[#D4D0CA] text-black"><X className="w-4 h-4"/></button>
-                      </div>
-                    ) : (
-                      <>
                         <div className="flex-1 flex items-center gap-3 justify-center text-sm">
                           <span className={`font-black ${pA?.result==="WIN"?"text-[#10B981]":pA?.result==="LOSE"?"text-[#C2410C]":"text-[#1C1917]"}`}>{nA}</span>
                           <span className="px-3 py-1 rounded border-2 border-[#D4D0CA] bg-[#F5F5F4] text-[#1C1917] font-black text-sm min-w-[60px] text-center">
@@ -267,14 +235,8 @@ export default function GroupStageView({ comp, matches, teams, onRefresh }: { co
                         </div>
                         {m.scheduledAt&&<span className="text-[10px] text-black font-semibold hidden sm:block">{new Date(m.scheduledAt).toLocaleString("id-ID",{dateStyle:"short",timeStyle:"short"})}</span>}
                         <div className="flex items-center gap-1 ml-auto">
-                          {m.status!=="COMPLETED"&&(
-                            <button onClick={()=>{setScoring(m.id);const s:Record<string,number>={};m.participants.forEach(p=>s[p.id]=p.score);setScores(s);}}
-                              className="p-1.5 rounded border-2 border-[#0891B2] text-[#0891B2] hover:bg-[#ECFEFF]"><Pencil className="w-3.5 h-3.5"/></button>
-                          )}
                           <button onClick={()=>handleDelete(m.id)} className="p-1.5 rounded border-2 border-transparent text-black hover:border-[#C2410C] hover:text-[#C2410C]"><Trash2 className="w-3.5 h-3.5"/></button>
                         </div>
-                      </>
-                    )}
                   </div>
                 );
               })}
@@ -282,6 +244,10 @@ export default function GroupStageView({ comp, matches, teams, onRefresh }: { co
           </div>
         );
       })}
+      
+      <div className="text-xs font-bold text-gray-500 mt-4 bg-gray-50 p-3 rounded border border-gray-200">
+        💡 <strong>Tips:</strong> Untuk mengatur skor dan tanggal pertandingan antar tim, silakan gunakan tab <strong>Jadwal & Skor</strong>.
+      </div>
     </div>
   );
 }

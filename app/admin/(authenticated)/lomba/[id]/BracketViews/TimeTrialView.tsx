@@ -12,9 +12,6 @@ export default function TimeTrialView({ comp, matches, teams, onRefresh }: { com
 
   const [showAdd, setShowAdd] = useState(false);
   const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
-  const [sched, setSched] = useState("");
-  const [editingId, setEditingId] = useState<string|null>(null);
-  const [scoreVal, setScoreVal] = useState<Record<string,string>>({});
   const [saving, setSaving] = useState(false);
 
   const isTeam = comp.type==="TEAM"||comp.type==="DUO";
@@ -43,21 +40,9 @@ export default function TimeTrialView({ comp, matches, teams, onRefresh }: { com
     await fetch("/api/matches",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
       competitionId:comp.id, name:`Time Trial: ${names}`,
       round:"Time Trial", stage:"REGULAR",
-      scheduledAt:sched||null, participants:parts,
+      participants:parts,
     })});
     toast.success("Peserta ditambahkan ke ranking!"); setShowAdd(false); setSelectedTeams([]);
-    setSaving(false); onRefresh();
-  };
-
-  const handleSaveScore = async (matchId:string, partId:string, origScore:number) => {
-    const raw = scoreVal[partId];
-    const parsed = parseFloat(raw||String(origScore));
-    setSaving(true);
-    await fetch(`/api/matches/${matchId}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-      status:"COMPLETED",
-      scores:[{ id:partId, score:parsed, timeResult:raw||null }],
-    })});
-    toast.success("Nilai disimpan!"); setEditingId(null); setScoreVal({});
     setSaving(false); onRefresh();
   };
 
@@ -103,10 +88,7 @@ export default function TimeTrialView({ comp, matches, teams, onRefresh }: { com
               </label>
             ))}
           </div>
-          <div>
-            <label className="block text-xs font-black text-[#1C1917] mb-1 uppercase tracking-wider">Tanggal & Jam (opsional)</label>
-            <input type="datetime-local" value={sched} onChange={e=>setSched(e.target.value)} className="neu-input text-sm max-w-xs"/>
-          </div>
+
           <div className="flex gap-2">
             <button onClick={handleAddEntries} disabled={saving||selectedTeams.length===0} className="btn-neon px-4 py-2 text-xs disabled:opacity-50">{saving?"...":"Tambahkan"}</button>
             <button onClick={()=>setShowAdd(false)} className="px-4 py-2 text-xs font-black border-2 border-[#D4D0CA] rounded-[4px] text-white">Batal</button>
@@ -127,7 +109,6 @@ export default function TimeTrialView({ comp, matches, teams, onRefresh }: { com
             </tr></thead>
             <tbody>
               {ranked.map((e,i)=>{
-                const isEditing = editingId===e.partId;
                 const medal = i===0?"🥇":i===1?"🥈":i===2?"🥉":null;
                 return (
                   <tr key={e.partId} className={`border-b-2 border-[#E7E5E4] hover:bg-[#FFFBEB] ${i<3?"font-black":""}`}>
@@ -135,31 +116,13 @@ export default function TimeTrialView({ comp, matches, teams, onRefresh }: { com
                     <td className="px-4 py-3 text-sm font-black text-[#1C1917]">{e.name}</td>
                     <td className="px-4 py-3 text-xs text-black font-semibold hidden sm:table-cell">{e.section||"-"}</td>
                     <td className="px-4 py-3 text-center">
-                      {isEditing ? (
-                        <input type="text" value={scoreVal[e.partId]??""} placeholder={String(e.score??"")}
-                          onChange={ev=>setScoreVal({...scoreVal,[e.partId]:ev.target.value})}
-                          className="w-24 text-center border-[2.5px] border-[#1C1917] rounded-[4px] py-1 text-sm font-black bg-[#FFFBEB] focus:outline-none"
-                          autoFocus/>
-                      ) : (
                         <span className={`stat-number font-black text-lg ${i<3?"text-[#0891B2]":"text-[#1C1917]"}`}>
                           {e.score!==null&&e.score!==0 ? (e.timeResult||String(e.score)) : <span className="text-black text-sm">Belum dinilai</span>}
                         </span>
-                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1 justify-end">
-                        {isEditing ? (
-                          <>
-                            <button onClick={()=>handleSaveScore(e.matchId,e.partId,e.score||0)} disabled={saving}
-                              className="p-1.5 rounded border-2 border-[#10B981] text-[#10B981] hover:bg-[#ECFDF5] disabled:opacity-50"><Check className="w-3.5 h-3.5"/></button>
-                            <button onClick={()=>{setEditingId(null);setScoreVal({});}} className="p-1.5 rounded border-2 border-[#D4D0CA] text-black"><X className="w-3.5 h-3.5"/></button>
-                          </>
-                        ) : (
-                          <>
-                            <button onClick={()=>setEditingId(e.partId)} className="p-1.5 rounded border-2 border-[#0891B2] text-[#0891B2] hover:bg-[#ECFEFF]"><Pencil className="w-3.5 h-3.5"/></button>
-                            <button onClick={()=>handleDelete(e.matchId)} className="p-1.5 rounded border-2 border-transparent text-black hover:border-[#C2410C] hover:text-[#C2410C]"><Trash2 className="w-3.5 h-3.5"/></button>
-                          </>
-                        )}
+                          <button onClick={()=>handleDelete(e.matchId)} className="p-1.5 rounded border-2 border-transparent text-black hover:border-[#C2410C] hover:text-[#C2410C]"><Trash2 className="w-3.5 h-3.5"/></button>
                       </div>
                     </td>
                   </tr>
@@ -175,6 +138,10 @@ export default function TimeTrialView({ comp, matches, teams, onRefresh }: { com
           <p className="text-xs mt-1">Klik "Tambah Peserta" untuk mulai mencatat nilai/waktu</p>
         </div>
       )}
+      
+      <div className="text-xs font-bold text-gray-500 mt-4 bg-gray-50 p-3 rounded border border-gray-200">
+        💡 <strong>Tips:</strong> Untuk mengatur skor (nilai/waktu) dan menjadwalkan perlombaan Time Trial ini, silakan masuk ke tab <strong>Jadwal & Skor</strong>.
+      </div>
     </div>
   );
 }

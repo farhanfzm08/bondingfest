@@ -111,44 +111,28 @@ export default function TabJadwal({ comp }: { comp: Competition }) {
                   {m.groupName && <span className="text-xs font-bold bg-[#E7E5E4] px-2 py-0.5 rounded-[4px]">Grup {m.groupName}</span>}
                 </div>
 
-                <div className="grid sm:grid-cols-2 gap-4">
-                  {/* Team A */}
-                  <div className={`p-3 border-2 border-[#1C1917] rounded-[6px] bg-white ${m.participants[0]?.result==="WIN"?"border-[#10B981] shadow-[2px_2px_0_#10B981]":""}`}>
-                    <div className="text-xs font-bold text-gray-500 mb-1">Tim 1</div>
-                    <div className="font-black text-sm text-[#1C1917] truncate mb-2">
-                      {m.participants[0]?.team?.name || m.participants[0]?.participant?.name || "TBD"}
-                    </div>
-                    {isEditing ? (
-                      <input 
-                        type="number" 
-                        value={editForm!.scores[m.participants[0]?.id] || 0}
-                        onChange={e => setEditForm({...editForm!, scores: {...editForm!.scores, [m.participants[0]?.id]: Number(e.target.value)}})}
-                        className="w-full text-center font-black border-2 border-[#1C1917] rounded-[4px] p-1 bg-[#FFFBEB]"
-                      />
-                    ) : (
-                      <div className="text-2xl font-black text-[#0891B2]">{m.participants[0]?.score ?? "-"}</div>
-                    )}
-                  </div>
-
-                  {/* Team B */}
-                  {m.participants.length > 1 && (
-                    <div className={`p-3 border-2 border-[#1C1917] rounded-[6px] bg-white ${m.participants[1]?.result==="WIN"?"border-[#10B981] shadow-[2px_2px_0_#10B981]":""}`}>
-                      <div className="text-xs font-bold text-gray-500 mb-1">Tim 2</div>
-                      <div className="font-black text-sm text-[#1C1917] truncate mb-2">
-                        {m.participants[1]?.team?.name || m.participants[1]?.participant?.name || "TBD"}
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {m.participants.map((p: any, idx: number) => (
+                    <div key={p.id} className={`p-3 border-2 border-[#1C1917] rounded-[6px] bg-white ${p.result==="WIN"?"border-[#10B981] shadow-[2px_2px_0_#10B981]":""}`}>
+                      <div className="text-xs font-bold text-gray-500 mb-1">
+                        {comp.format === "TIME_TRIAL" ? `Peserta ${idx+1}` : `Tim ${idx+1}`}
+                      </div>
+                      <div className="font-black text-sm text-[#1C1917] truncate mb-2" title={p.team?.name || p.participant?.name || "TBD"}>
+                        {p.team?.name || p.participant?.name || "TBD"}
                       </div>
                       {isEditing ? (
                         <input 
                           type="number" 
-                          value={editForm!.scores[m.participants[1]?.id] || 0}
-                          onChange={e => setEditForm({...editForm!, scores: {...editForm!.scores, [m.participants[1]?.id]: Number(e.target.value)}})}
+                          step="any"
+                          value={editForm!.scores[p.id] ?? ""}
+                          onChange={e => setEditForm({...editForm!, scores: {...editForm!.scores, [p.id]: Number(e.target.value)}})}
                           className="w-full text-center font-black border-2 border-[#1C1917] rounded-[4px] p-1 bg-[#FFFBEB]"
                         />
                       ) : (
-                        <div className="text-2xl font-black text-[#0891B2]">{m.participants[1]?.score ?? "-"}</div>
+                        <div className="text-2xl font-black text-[#0891B2]">{p.score ?? "-"}</div>
                       )}
                     </div>
-                  )}
+                  ))}
                 </div>
               </div>
 
