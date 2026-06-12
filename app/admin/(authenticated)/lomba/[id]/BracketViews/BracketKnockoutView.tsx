@@ -14,8 +14,6 @@ export default function BracketKnockoutView({ comp, matches, teams, onRefresh }:
   const isTeam = comp.type==="TEAM"||comp.type==="DUO";
 
   const [saving, setSaving] = useState(false);
-  const [scoring, setScoring] = useState<string|null>(null);
-  const [scores, setScores] = useState<Record<string,number>>({});
   
   // Edit team mode
   const [editingTeam, setEditingTeam] = useState<{matchId:string, participantIndex:number, currentTeamId:string|null}|null>(null);
@@ -67,20 +65,6 @@ export default function BracketKnockoutView({ comp, matches, teams, onRefresh }:
       onRefresh();
     } catch { toast.error("Gagal membuat bagan"); }
     finally { setSaving(false); }
-  };
-
-  const handleSaveScore = async (m: Match) => {
-    if (m.participants.length < 2) return;
-    setSaving(true);
-    const sA = scores[m.participants[0].id]??m.participants[0].score??0;
-    const sB = scores[m.participants[1].id]??m.participants[1].score??0;
-    const payload = [
-      {id:m.participants[0].id, score:sA, result:sA>sB?"WIN":sA<sB?"LOSE":"DRAW"},
-      {id:m.participants[1].id, score:sB, result:sB>sA?"WIN":sB<sA?"LOSE":"DRAW"},
-    ];
-    await fetch(`/api/matches/${m.id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:"COMPLETED",scores:payload})});
-    toast.success("Skor disimpan!"); setScoring(null); setScores({});
-    setSaving(false); onRefresh();
   };
 
   const handleUpdateTeam = async (matchId: string, participantId: string, newTeamId: string) => {
@@ -141,8 +125,6 @@ export default function BracketKnockoutView({ comp, matches, teams, onRefresh }:
     const tB_id = pB?.teamId || pB?.participantId;
     const nA = pA?.team?.name || pA?.participant?.name || "TBD";
     const nB = pB?.team?.name || pB?.participant?.name || "TBD";
-    
-    const isScoring = scoring === m.id;
 
     return (
       <div className={`w-[200px] rounded-[6px] border-[2.5px] border-[#1C1917] bg-white overflow-hidden ${m.status==="COMPLETED"?"shadow-[3px_3px_0_#10B981]":"shadow-[3px_3px_0_#D4D0CA]"} z-10 relative`}>
@@ -156,11 +138,7 @@ export default function BracketKnockoutView({ comp, matches, teams, onRefresh }:
           ) : (
             <span onClick={()=>setEditingTeam({matchId:m.id, participantIndex:0, currentTeamId:tA_id||null})} className={`text-xs font-black truncate max-w-[120px] cursor-pointer hover:text-[#0891B2] ${pA?.result==="WIN"?"text-[#10B981]":pA?.result==="LOSE"?"text-black":"text-[#1C1917]"}`}>{nA}</span>
           )}
-          {isScoring ? (
-            <input type="number" value={scores[pA?.id]??pA?.score??0} onChange={e=>setScores({...scores,[pA.id]:Number(e.target.value)})} className="w-10 text-center text-xs font-black border-2 border-[#1C1917] rounded-[3px] py-0.5 bg-[#FFFBEB]"/>
-          ) : (
-            <span className={`text-sm font-black stat-number ${pA?.result==="WIN"?"text-[#10B981]":"text-[#1C1917]"}`}>{m.status==="COMPLETED" ? pA?.score??0 : "-"}</span>
-          )}
+          <span className={`text-sm font-black stat-number ${pA?.result==="WIN"?"text-[#10B981]":"text-[#1C1917]"}`}>{m.status==="COMPLETED" ? pA?.score??0 : "-"}</span>
         </div>
         {/* Team B */}
         <div className={`flex items-center justify-between px-2 py-1.5 ${pB?.result==="WIN"?"bg-[#ECFDF5]":""} group`}>
@@ -172,26 +150,7 @@ export default function BracketKnockoutView({ comp, matches, teams, onRefresh }:
           ) : (
             <span onClick={()=>setEditingTeam({matchId:m.id, participantIndex:1, currentTeamId:tB_id||null})} className={`text-xs font-black truncate max-w-[120px] cursor-pointer hover:text-[#0891B2] ${pB?.result==="WIN"?"text-[#10B981]":pB?.result==="LOSE"?"text-black":"text-[#1C1917]"}`}>{nB}</span>
           )}
-          {isScoring ? (
-            <input type="number" value={scores[pB?.id]??pB?.score??0} onChange={e=>setScores({...scores,[pB.id]:Number(e.target.value)})} className="w-10 text-center text-xs font-black border-2 border-[#1C1917] rounded-[3px] py-0.5 bg-[#FFFBEB]"/>
-          ) : (
-            <span className={`text-sm font-black stat-number ${pB?.result==="WIN"?"text-[#10B981]":"text-[#1C1917]"}`}>{m.status==="COMPLETED" ? pB?.score??0 : "-"}</span>
-          )}
-        </div>
-        {/* Actions overlay when hovered */}
-        <div className="absolute top-0 right-0 h-full flex flex-col justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity pr-1">
-           {isScoring ? (
-              <div className="bg-white border-2 border-[#1C1917] rounded-[4px] p-0.5 flex flex-col gap-1 shadow-[2px_2px_0_#1C1917]">
-                <button onClick={()=>handleSaveScore(m)} className="text-[#10B981] hover:bg-[#ECFDF5] p-1"><Check className="w-3 h-3"/></button>
-                <button onClick={()=>{setScoring(null);setScores({});}} className="text-red-500 hover:bg-red-50 p-1"><X className="w-3 h-3"/></button>
-              </div>
-           ) : (
-              <div className="bg-white border-2 border-[#1C1917] rounded-[4px] p-0.5 flex flex-col gap-1 shadow-[2px_2px_0_#1C1917] z-20 absolute right-[-10px]">
-                {m.status!=="COMPLETED"&&(
-                  <button onClick={()=>{setScoring(m.id);const s:Record<string,number>={};m.participants.forEach(p=>s[p.id]=p.score);setScores(s);}} className="text-[#0891B2] hover:bg-[#ECFEFF] p-1"><Pencil className="w-3 h-3"/></button>
-                )}
-              </div>
-           )}
+          <span className={`text-sm font-black stat-number ${pB?.result==="WIN"?"text-[#10B981]":"text-[#1C1917]"}`}>{m.status==="COMPLETED" ? pB?.score??0 : "-"}</span>
         </div>
       </div>
     );
@@ -261,7 +220,7 @@ export default function BracketKnockoutView({ comp, matches, teams, onRefresh }:
       </div>
       
       <div className="text-xs font-bold text-gray-500 mt-4 bg-gray-50 p-3 rounded border border-gray-200">
-        💡 <strong>Tips:</strong> Klik nama tim (TBD) di dalam bagan untuk memasukkan/mengganti tim. Arahkan kursor ke ujung kotak untuk mengubah skor.
+        💡 <strong>Tips:</strong> Klik nama tim (TBD) di dalam bagan untuk memasukkan/mengganti tim. <strong>Atur skor dan jadwal pertandingan melalui tab "Jadwal & Skor".</strong>
       </div>
     </div>
   );

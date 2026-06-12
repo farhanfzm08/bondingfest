@@ -9,11 +9,14 @@ import TabPeserta from "./TabPeserta";
 import TabBracket from "./TabBracket";
 import TabJuara from "./TabJuara";
 
+import TabJadwal from "./TabJadwal";
+
 const TABS = [
   { key: "info",    label: "⚙️ Info & Konfigurasi", icon: Settings },
   { key: "peserta", label: "👥 Peserta & Tim",       icon: Users },
-  { key: "bracket", label: "📅 Jadwal & Skor",       icon: Calendar },
-  { key: "juara",   label: "🏆 Tetapkan Juara",      icon: Trophy },
+  { key: "bracket", label: "🏆 Bracket / Grup",      icon: Trophy },
+  { key: "jadwal",  label: "📅 Jadwal & Skor",       icon: Calendar },
+  { key: "juara",   label: "🏅 Tetapkan Juara",      icon: Trophy },
 ];
 
 export interface Competition {
@@ -87,6 +90,7 @@ export default function LombaDetailPage() {
         {tab === "info"    && <TabInfo    comp={comp} onSaved={fetchComp} />}
         {tab === "peserta" && <TabPeserta comp={comp} />}
         {tab === "bracket" && <TabBracket comp={comp} />}
+        {tab === "jadwal"  && <TabJadwal  comp={comp} />}
         {tab === "juara"   && <TabJuara   comp={comp} onSaved={fetchComp} />}
       </div>
     </div>
