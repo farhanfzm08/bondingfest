@@ -7,12 +7,13 @@ import { Match, TeamOrPart } from "../TabBracket";
 
 const ROUND_NAMES: Record<number, string> = { 2:"Final", 4:"Semifinal", 8:"Perempat Final", 16:"16 Besar", 32:"32 Besar", 64:"64 Besar" };
 
-export default function BracketKnockoutView({ comp, matches, teams, onRefresh }: { comp:Competition; matches:Match[]; teams:TeamOrPart[]; onRefresh:()=>void }) {
+export default function BracketKnockoutView({ comp, matches: initMatches, teams, onRefresh }: { comp:Competition; matches:Match[]; teams:TeamOrPart[]; onRefresh:()=>void }) {
   const cfg = comp.config ? JSON.parse(comp.config) : {};
   const bracketSize: number = cfg.bracketSize || 8;
   const thirdPlace: boolean = cfg.thirdPlace ?? true;
   const isTeam = comp.type==="TEAM"||comp.type==="DUO";
 
+  const [localMatches, setLocalMatches] = useState<Match[]>(initMatches);
   const [saving, setSaving] = useState(false);
   
   // Edit team mode
@@ -62,13 +63,32 @@ export default function BracketKnockoutView({ comp, matches, teams, onRefresh }:
         });
       }
       toast.success("Bagan berhasil dibuat!");
-      onRefresh();
+      onRefresh(); // Need real data after generation
     } catch { toast.error("Gagal membuat bagan"); }
     finally { setSaving(false); }
   };
 
   const handleUpdateTeam = async (matchId: string, participantId: string, newTeamId: string) => {
-    setSaving(true);
+    const selectedTeam = teams.find(t => t.id === newTeamId) || null;
+    // Optimistic update immediately
+    setLocalMatches(ms => ms.map(m => {
+      if (m.id !== matchId) return m;
+      return {
+        ...m,
+        participants: m.participants.map(p => {
+          if (p.id !== participantId) return p;
+          return {
+            ...p,
+            teamId: isTeam ? (newTeamId || null) : p.teamId,
+            participantId: !isTeam ? (newTeamId || null) : p.participantId,
+            team: (isTeam && selectedTeam) ? { id: selectedTeam.id, name: selectedTeam.name, section: selectedTeam.section ?? null } : p.team,
+            participant: (!isTeam && selectedTeam) ? { id: selectedTeam.id, name: selectedTeam.name, section: selectedTeam.section ?? null } : p.participant,
+          };
+        }),
+      };
+    }));
+    setEditingTeam(null);
+    // Background save
     try {
       const payloadParticipants = [
         { id: participantId, [isTeam ? "teamId" : "participantId"]: newTeamId || null }
@@ -79,24 +99,21 @@ export default function BracketKnockoutView({ comp, matches, teams, onRefresh }:
         body: JSON.stringify({ participants: payloadParticipants })
       });
       toast.success("Tim diperbarui!");
-      setEditingTeam(null);
-      onRefresh();
-    } catch { toast.error("Gagal memperbarui"); }
-    finally { setSaving(false); }
+    } catch { toast.error("Gagal memperbarui"); onRefresh(); }
   };
 
   const handleDeleteAll = async () => {
     if (!confirm("Hapus seluruh bagan? Ini akan menghapus semua pertandingan.")) return;
     setSaving(true);
     try {
-      for (const m of matches) await fetch(`/api/matches/${m.id}`, { method: "DELETE" });
+      for (const m of localMatches) await fetch(`/api/matches/${m.id}`, { method: "DELETE" });
+      setLocalMatches([]);
       toast.success("Bagan dihapus");
-      onRefresh();
-    } catch { toast.error("Gagal menghapus"); }
+    } catch { toast.error("Gagal menghapus"); onRefresh(); }
     finally { setSaving(false); }
   };
 
-  if (matches.length === 0) {
+  if (localMatches.length === 0) {
     return (
       <div className="neu-card p-12 text-center flex flex-col items-center justify-center">
         <h2 className="text-xl font-black text-[#1C1917] mb-2">Bagan Belum Dibuat</h2>
@@ -112,9 +129,9 @@ export default function BracketKnockoutView({ comp, matches, teams, onRefresh }:
   // Organize matches by bracketSlot
   const matchBySlot = useMemo(() => {
     const map = new Map<number, Match>();
-    matches.forEach(m => { if (m.bracketSlot) map.set(m.bracketSlot, m); });
+    localMatches.forEach(m => { if (m.bracketSlot) map.set(m.bracketSlot, m); });
     return map;
-  }, [matches]);
+  }, [localMatches]);
 
   const renderMatchCard = (m: Match | undefined) => {
     if (!m) return <div className="w-[200px] h-[80px] bg-gray-100 border-2 border-dashed border-gray-300 rounded-[6px] flex items-center justify-center text-xs text-gray-400 font-bold">Slot Kosong</div>;

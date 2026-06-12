@@ -1,13 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Check, X } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { Competition } from "../page";
-import { Match, MatchPart, TeamOrPart } from "../TabBracket";
+import { Match, TeamOrPart } from "../TabBracket";
 
 const cfg = (comp: Competition) => comp.config ? JSON.parse(comp.config) : {};
 
-// Group standings calculator
 function calcStandings(teams: TeamOrPart[], matches: Match[], config: any) {
   const ptsWin = config.pointsWin ?? 3;
   const ptsDraw = config.pointsDraw ?? 1;
@@ -30,53 +29,99 @@ function calcStandings(teams: TeamOrPart[], matches: Match[], config: any) {
   return stat;
 }
 
-export default function GroupStageView({ comp, matches, teams, onRefresh }: { comp:Competition; matches:Match[]; teams:TeamOrPart[]; onRefresh:()=>void; }) {
+export default function GroupStageView({ comp, matches: initMatches, teams: initTeams, onRefresh }: { comp:Competition; matches:Match[]; teams:TeamOrPart[]; onRefresh:()=>void; }) {
   const config = cfg(comp);
   const numGroups = config.numGroups || 2;
   const groups = Array.from({length:numGroups},(_,i)=>`Grup ${String.fromCharCode(65+i)}`);
-
-  const [addingMatch, setAddingMatch] = useState<string|null>(null);
-  const [p1, setP1] = useState(""); const [p2, setP2] = useState("");
-  const [sched, setSched] = useState(""); const [venue, setVenue] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  const teamsInGroup = (g:string) => teams.filter(t => t.groupName === g);
-  const matchesInGroup = (g:string) => matches.filter(m => m.groupName === g);
-  const stat = calcStandings(teams, matches, config);
   const isTeam = comp.type === "TEAM" || comp.type === "DUO";
 
+  // Local optimistic state — no reload needed
+  const [localTeams, setLocalTeams] = useState<TeamOrPart[]>(initTeams);
+  const [localMatches, setLocalMatches] = useState<Match[]>(initMatches);
+  const [savingTeam, setSavingTeam] = useState<string | null>(null);
+  const [addingMatch, setAddingMatch] = useState<string|null>(null);
+  const [p1, setP1] = useState(""); const [p2, setP2] = useState("");
+  const [savingMatch, setSavingMatch] = useState(false);
+
+  const teamsInGroup = (g:string) => localTeams.filter(t => t.groupName === g);
+  const matchesInGroup = (g:string) => localMatches.filter(m => m.groupName === g);
+  const stat = calcStandings(localTeams, localMatches, config);
+  const unassigned = localTeams.filter(t => !t.groupName);
+
+  // ── Assign team to group (optimistic) ─────────────────────────────────────
+  const handleAssignGroup = async (teamId: string, newGroup: string) => {
+    const prev = localTeams.find(t => t.id === teamId)?.groupName;
+    // Optimistic update immediately
+    setLocalTeams(ts => ts.map(t => t.id === teamId ? { ...t, groupName: newGroup || null } : t));
+    setSavingTeam(teamId);
+    try {
+      const res = await fetch(`/api/teams/${teamId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ groupName: newGroup || null }),
+      });
+      if (!res.ok) throw new Error("Gagal memindahkan tim");
+      toast.success(newGroup ? `Tim dipindah ke ${newGroup}` : "Tim dilepas dari grup");
+    } catch (e: any) {
+      // Rollback on error
+      setLocalTeams(ts => ts.map(t => t.id === teamId ? { ...t, groupName: prev ?? null } : t));
+      toast.error(e.message || "Gagal menyimpan");
+    } finally {
+      setSavingTeam(null);
+    }
+  };
+
+  // ── Add match (optimistic) ─────────────────────────────────────────────────
   const handleAddMatch = async (group:string) => {
     if (!p1 || !p2 || p1===p2) { toast.error("Pilih 2 peserta berbeda"); return; }
-    setSaving(true);
+    setSavingMatch(true);
+    const n1 = localTeams.find(t=>t.id===p1)?.name||"?";
+    const n2 = localTeams.find(t=>t.id===p2)?.name||"?";
     const pArr = [{ [isTeam?"teamId":"participantId"]: p1 }, { [isTeam?"teamId":"participantId"]: p2 }];
-    const n1 = teams.find(t=>t.id===p1)?.name||"?";
-    const n2 = teams.find(t=>t.id===p2)?.name||"?";
-    await fetch("/api/matches", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({
-      competitionId:comp.id, name:`${n1} vs ${n2}`,
-      round:"Fase Grup", stage:"REGULAR", groupName:group,
-      scheduledAt:sched||null, venue:venue||null, participants:pArr,
-    })});
-    toast.success("Pertandingan ditambahkan!");
-    setAddingMatch(null); setP1(""); setP2(""); setSched(""); setVenue("");
-    setSaving(false); onRefresh();
+
+    // Optimistic placeholder
+    const tempId = `temp_${Date.now()}`;
+    const t1 = localTeams.find(t=>t.id===p1);
+    const t2 = localTeams.find(t=>t.id===p2);
+    const optimisticMatch: Match = {
+      id: tempId, name: `${n1} vs ${n2}`, round: "Fase Grup", groupName: group,
+      stage: "REGULAR", status: "SCHEDULED", scheduledAt: null, venue: null, bracketSlot: null,
+      participants: [
+        { id: `tp1_${Date.now()}`, score: 0, result: null, timeResult: null, teamId: p1, participantId: null, team: t1 ? { id: t1.id, name: t1.name, section: t1.section ?? null } : null, participant: null },
+        { id: `tp2_${Date.now()}`, score: 0, result: null, timeResult: null, teamId: p2, participantId: null, team: t2 ? { id: t2.id, name: t2.name, section: t2.section ?? null } : null, participant: null },
+      ],
+    };
+    setLocalMatches(ms => [...ms, optimisticMatch]);
+    setAddingMatch(null); setP1(""); setP2("");
+
+    try {
+      const res = await fetch("/api/matches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ competitionId:comp.id, name:`${n1} vs ${n2}`, round:"Fase Grup", stage:"REGULAR", groupName:group, participants:pArr }),
+      });
+      const real = await res.json();
+      // Replace temp with real data
+      setLocalMatches(ms => ms.map(m => m.id === tempId ? real : m));
+      toast.success("Pertandingan ditambahkan!");
+    } catch {
+      setLocalMatches(ms => ms.filter(m => m.id !== tempId));
+      toast.error("Gagal menambahkan pertandingan");
+    } finally {
+      setSavingMatch(false);
+    }
   };
 
+  // ── Delete match (optimistic) ──────────────────────────────────────────────
   const handleDelete = async (id:string) => {
     if (!confirm("Hapus pertandingan?")) return;
-    await fetch(`/api/matches/${id}`, {method:"DELETE"});
-    toast.success("Dihapus"); onRefresh();
-  };
-
-  const [assigningGroup, setAssigningGroup] = useState<Record<string,string>>({});
-  const [assignSaving, setAssignSaving] = useState(false);
-
-  const unassigned = teams.filter(t => !t.groupName);
-
-  const handleAssignGroup = async (teamId: string, group: string) => {
-    setAssignSaving(true);
-    await fetch(`/api/teams/${teamId}`, { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ groupName: group||null }) });
-    toast.success(group ? `Tim dipindah ke ${group}` : "Tim dilepas dari grup");
-    setAssignSaving(false); onRefresh();
+    setLocalMatches(ms => ms.filter(m => m.id !== id));
+    try {
+      await fetch(`/api/matches/${id}`, { method:"DELETE" });
+      toast.success("Dihapus");
+    } catch {
+      toast.error("Gagal menghapus"); onRefresh();
+    }
   };
 
   return (
@@ -96,7 +141,7 @@ export default function GroupStageView({ comp, matches, teams, onRefresh }: { co
               <th className="text-center px-3 py-2 text-xs font-black text-[#1C1917] uppercase">Pindahkan ke</th>
             </tr></thead>
             <tbody>
-              {teams.map(t=>(
+              {localTeams.map(t=>(
                 <tr key={t.id} className="border-b border-[#E7E5E4] hover:bg-[#FFFBEB]">
                   <td className="px-3 py-2 font-black text-[#1C1917]">{t.name}</td>
                   <td className="px-3 py-2 text-black font-semibold text-xs">{t.section||"-"}</td>
@@ -108,18 +153,21 @@ export default function GroupStageView({ comp, matches, teams, onRefresh }: { co
                   <td className="px-3 py-2">
                     <div className="flex items-center justify-center gap-2">
                       <select
-                        defaultValue={t.groupName||""}
-                        onChange={e=>handleAssignGroup(t.id, e.target.value)}
-                        disabled={assignSaving}
-                        className="text-xs border-[2.5px] border-[#1C1917] rounded-[4px] px-2 py-1 font-black bg-white focus:outline-none focus:shadow-[2px_2px_0_#0891B2] disabled:opacity-50">
+                        key={t.groupName ?? "none"}
+                        defaultValue={t.groupName ?? ""}
+                        onChange={e => handleAssignGroup(t.id, e.target.value)}
+                        disabled={savingTeam === t.id}
+                        className="text-xs border-[2.5px] border-[#1C1917] rounded-[4px] px-2 py-1 font-black bg-white focus:outline-none focus:shadow-[2px_2px_0_#0891B2] disabled:opacity-50"
+                      >
                         <option value="">-- Tidak ada --</option>
                         {groups.map(g=><option key={g} value={g}>{g}</option>)}
                       </select>
+                      {savingTeam === t.id && <span className="text-xs text-[#0891B2] animate-pulse font-bold">Menyimpan...</span>}
                     </div>
                   </td>
                 </tr>
               ))}
-              {teams.length===0&&<tr><td colSpan={4} className="px-3 py-4 text-center text-black font-semibold text-sm">Belum ada peserta. Tambahkan di tab "Peserta & Tim".</td></tr>}
+              {localTeams.length===0&&<tr><td colSpan={4} className="px-3 py-4 text-center text-black font-semibold text-sm">Belum ada peserta. Tambahkan di tab "Peserta & Tim".</td></tr>}
             </tbody>
           </table>
         </div>
@@ -202,17 +250,9 @@ export default function GroupStageView({ comp, matches, teams, onRefresh }: { co
                       {grpTeams.filter(t=>t.id!==p1).map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
                   </div>
-                  <div>
-                    <label className={lbl}>Tanggal & Jam</label>
-                    <input type="datetime-local" value={sched} onChange={e=>setSched(e.target.value)} className="neu-input text-sm"/>
-                  </div>
-                  <div>
-                    <label className={lbl}>Venue</label>
-                    <input value={venue} onChange={e=>setVenue(e.target.value)} placeholder="Lapangan A..." className="neu-input text-sm"/>
-                  </div>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={()=>handleAddMatch(group)} disabled={saving} className="btn-neon px-4 py-2 text-xs disabled:opacity-50">{saving?"...":"Tambah"}</button>
+                  <button onClick={()=>handleAddMatch(group)} disabled={savingMatch} className="btn-neon px-4 py-2 text-xs disabled:opacity-50">{savingMatch?"Menyimpan...":"Tambah"}</button>
                   <button onClick={()=>setAddingMatch(null)} className="px-4 py-2 text-xs font-black border-2 border-[#D4D0CA] rounded-[4px] text-white">Batal</button>
                 </div>
               </div>
@@ -224,19 +264,20 @@ export default function GroupStageView({ comp, matches, teams, onRefresh }: { co
                 const pA=m.participants[0]; const pB=m.participants[1];
                 const nA=pA?.team?.name||pA?.participant?.name||"TBD";
                 const nB=pB?.team?.name||pB?.participant?.name||"TBD";
+                const isTemp = m.id.startsWith("temp_");
                 return (
-                  <div key={m.id} className={`flex items-center gap-3 px-4 py-3 rounded-[6px] border-[2.5px] border-[#1C1917] bg-white ${m.status==="COMPLETED"?"shadow-[3px_3px_0_#10B981]":"shadow-[3px_3px_0_#D4D0CA]"}`}>
-                        <div className="flex-1 flex items-center gap-3 justify-center text-sm">
-                          <span className={`font-black ${pA?.result==="WIN"?"text-[#10B981]":pA?.result==="LOSE"?"text-[#C2410C]":"text-[#1C1917]"}`}>{nA}</span>
-                          <span className="px-3 py-1 rounded border-2 border-[#D4D0CA] bg-[#F5F5F4] text-[#1C1917] font-black text-sm min-w-[60px] text-center">
-                            {m.status==="COMPLETED" ? `${pA?.score??0} – ${pB?.score??0}` : "vs"}
-                          </span>
-                          <span className={`font-black ${pB?.result==="WIN"?"text-[#10B981]":pB?.result==="LOSE"?"text-[#C2410C]":"text-[#1C1917]"}`}>{nB}</span>
-                        </div>
-                        {m.scheduledAt&&<span className="text-[10px] text-black font-semibold hidden sm:block">{new Date(m.scheduledAt).toLocaleString("id-ID",{dateStyle:"short",timeStyle:"short"})}</span>}
-                        <div className="flex items-center gap-1 ml-auto">
-                          <button onClick={()=>handleDelete(m.id)} className="p-1.5 rounded border-2 border-transparent text-black hover:border-[#C2410C] hover:text-[#C2410C]"><Trash2 className="w-3.5 h-3.5"/></button>
-                        </div>
+                  <div key={m.id} className={`flex items-center gap-3 px-4 py-3 rounded-[6px] border-[2.5px] border-[#1C1917] bg-white ${m.status==="COMPLETED"?"shadow-[3px_3px_0_#10B981]":"shadow-[3px_3px_0_#D4D0CA]"} ${isTemp?"opacity-60":""}`}>
+                    <div className="flex-1 flex items-center gap-3 justify-center text-sm">
+                      <span className={`font-black ${pA?.result==="WIN"?"text-[#10B981]":pA?.result==="LOSE"?"text-[#C2410C]":"text-[#1C1917]"}`}>{nA}</span>
+                      <span className="px-3 py-1 rounded border-2 border-[#D4D0CA] bg-[#F5F5F4] text-[#1C1917] font-black text-sm min-w-[60px] text-center">
+                        {m.status==="COMPLETED" ? `${pA?.score??0} – ${pB?.score??0}` : "vs"}
+                      </span>
+                      <span className={`font-black ${pB?.result==="WIN"?"text-[#10B981]":pB?.result==="LOSE"?"text-[#C2410C]":"text-[#1C1917]"}`}>{nB}</span>
+                    </div>
+                    {m.scheduledAt&&<span className="text-[10px] text-black font-semibold hidden sm:block">{new Date(m.scheduledAt).toLocaleString("id-ID",{dateStyle:"short",timeStyle:"short",timeZone:"Asia/Jakarta"})}</span>}
+                    {!isTemp && (
+                      <button onClick={()=>handleDelete(m.id)} className="p-1.5 rounded border-2 border-transparent text-black hover:border-[#C2410C] hover:text-[#C2410C]"><Trash2 className="w-3.5 h-3.5"/></button>
+                    )}
                   </div>
                 );
               })}
@@ -244,7 +285,7 @@ export default function GroupStageView({ comp, matches, teams, onRefresh }: { co
           </div>
         );
       })}
-      
+
       <div className="text-xs font-bold text-gray-500 mt-4 bg-gray-50 p-3 rounded border border-gray-200">
         💡 <strong>Tips:</strong> Untuk mengatur skor dan tanggal pertandingan antar tim, silakan gunakan tab <strong>Jadwal & Skor</strong>.
       </div>
