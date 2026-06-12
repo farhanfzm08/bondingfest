@@ -48,20 +48,36 @@ export default function GroupStageView({ comp, matches: initMatches, teams: init
   const stat = calcStandings(localTeams, localMatches, config);
   const unassigned = localTeams.filter(t => !t.groupName);
 
-  // ── Assign team to group (optimistic) ─────────────────────────────────────
+  // ── Assign team/participant to group (optimistic) ──────────────────────────
   const handleAssignGroup = async (teamId: string, newGroup: string) => {
-    const prev = localTeams.find(t => t.id === teamId)?.groupName;
+    const entry = localTeams.find(t => t.id === teamId);
+    const prev = entry?.groupName;
     // Optimistic update immediately
     setLocalTeams(ts => ts.map(t => t.id === teamId ? { ...t, groupName: newGroup || null } : t));
     setSavingTeam(teamId);
     try {
-      const res = await fetch(`/api/teams/${teamId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ groupName: newGroup || null }),
-      });
-      if (!res.ok) throw new Error("Gagal memindahkan tim");
-      toast.success(newGroup ? `Tim dipindah ke ${newGroup}` : "Tim dilepas dari grup");
+      let res: Response;
+      if (isTeam) {
+        // Team-based competition: PATCH /api/teams/[teamId]
+        res = await fetch(`/api/teams/${teamId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ groupName: newGroup || null }),
+        });
+      } else {
+        // Individual competition: PATCH /api/competitions/[compId]/participants/[participantId]
+        // For individual, t.id = participant.id, and t.cpId = CompetitionParticipant.id (not used here)
+        res = await fetch(`/api/competitions/${comp.id}/participants/${teamId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ groupName: newGroup || null }),
+        });
+      }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Gagal memindahkan");
+      }
+      toast.success(newGroup ? `Dipindah ke ${newGroup}` : "Dilepas dari grup");
     } catch (e: any) {
       // Rollback on error
       setLocalTeams(ts => ts.map(t => t.id === teamId ? { ...t, groupName: prev ?? null } : t));

@@ -158,6 +158,7 @@ model CompetitionParticipant {
   participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
   teamId        String?
   seedNumber    String?
+  groupName     String?  // Untuk format GROUP_STAGE pada lomba INDIVIDUAL
   status        String   @default("REGISTERED")
 
   @@unique([competitionId, participantId])
