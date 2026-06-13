@@ -141,14 +141,18 @@ async function recalculateGroupStandings(competitionId: string) {
   const ptsWin = config.pointsWin ?? 3;
   const ptsDraw = config.pointsDraw ?? 1;
   const ptsLoss = config.pointsLoss ?? 0;
+  const isTeam = competition.type === "TEAM" || competition.type === "DUO";
 
   const completedMatches = await prisma.match.findMany({
     where: { competitionId, status: "COMPLETED", stage: "REGULAR" },
-    include: { participants: { include: { team: true } } },
+    include: { participants: true },
   });
 
-  const teamStats = new Map<string, {
-    teamId: string; groupName: string;
+  const entryStats = new Map<string, {
+    entryId: string;
+    teamId: string | null;
+    participantId: string | null;
+    groupName: string;
     wins: number; draws: number; losses: number;
     goalsFor: number; goalsAgainst: number; points: number;
   }>();
@@ -156,21 +160,30 @@ async function recalculateGroupStandings(competitionId: string) {
   for (const match of completedMatches) {
     if (match.participants.length !== 2) continue;
     const [pA, pB] = match.participants;
-    if (!pA?.teamId || !pB?.teamId) continue;
+    const idA = pA.teamId || pA.participantId;
+    const idB = pB.teamId || pB.participantId;
+    if (!idA || !idB) continue;
 
     const sA = pA.score ?? 0;
     const sB = pB.score ?? 0;
 
-    const initTeam = (p: typeof pA) => ({
-      teamId: p.teamId!, groupName: match.groupName || "",
+    if (!entryStats.has(idA)) entryStats.set(idA, {
+      entryId: idA,
+      teamId: pA.teamId || null,
+      participantId: pA.participantId || null,
+      groupName: match.groupName || "",
+      wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, points: 0,
+    });
+    if (!entryStats.has(idB)) entryStats.set(idB, {
+      entryId: idB,
+      teamId: pB.teamId || null,
+      participantId: pB.participantId || null,
+      groupName: match.groupName || "",
       wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, points: 0,
     });
 
-    if (!teamStats.has(pA.teamId)) teamStats.set(pA.teamId, initTeam(pA));
-    if (!teamStats.has(pB.teamId)) teamStats.set(pB.teamId, initTeam(pB));
-
-    const stA = teamStats.get(pA.teamId)!;
-    const stB = teamStats.get(pB.teamId)!;
+    const stA = entryStats.get(idA)!;
+    const stB = entryStats.get(idB)!;
 
     stA.goalsFor += sA; stA.goalsAgainst += sB;
     stB.goalsFor += sB; stB.goalsAgainst += sA;
@@ -180,25 +193,24 @@ async function recalculateGroupStandings(competitionId: string) {
     else { stA.draws++; stA.points += ptsDraw; stB.draws++; stB.points += ptsDraw; }
   }
 
-  // Delete existing rankings for this competition (group stage only)
+  // Delete and recreate rankings
   await prisma.ranking.deleteMany({ where: { competitionId } });
 
-  // Sort by group, then points, then goal difference
-  const sorted = Array.from(teamStats.values()).sort((a, b) => {
+  const sorted = Array.from(entryStats.values()).sort((a, b) => {
     if (a.groupName !== b.groupName) return a.groupName.localeCompare(b.groupName);
     if (b.points !== a.points) return b.points - a.points;
     return (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst);
   });
 
-  // Assign positions within each group
   const groupPos = new Map<string, number>();
-  for (const st of sorted) {
+  await Promise.all(sorted.map(st => {
     const pos = (groupPos.get(st.groupName) || 0) + 1;
     groupPos.set(st.groupName, pos);
-    await prisma.ranking.create({
+    return prisma.ranking.create({
       data: {
         competitionId,
-        teamId: st.teamId,
+        teamId: st.teamId || null,
+        participantId: st.participantId || null,
         position: pos,
         points: st.points,
         wins: st.wins,
@@ -208,5 +220,5 @@ async function recalculateGroupStandings(competitionId: string) {
         goalsAgainst: st.goalsAgainst,
       },
     });
-  }
+  }));
 }
