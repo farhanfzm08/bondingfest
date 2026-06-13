@@ -9,7 +9,7 @@ import { cn, getStatusColor, getStatusLabel, formatDateTime, formatTime, getMeda
 // Types
 interface Participant { id: string; name: string; section: string | null; }
 interface Team { id: string; name: string; section: string | null; groupName?: string | null; seedNumber: number | null; members: Array<{ participant: Participant; role: string }>; rankings: Array<{ position: number; points: number; wins: number; losses: number; draws: number }>; }
-interface MatchParticipant { id?: string; score: number; result: string | null; team: { id?: string; name: string } | null; participant: { id?: string; name: string } | null; }
+interface MatchParticipant { id?: string; score: number; result: string | null; timeResult?: string | null; team: { id?: string; name: string } | null; participant: { id?: string; name: string } | null; }
 interface Match { id: string; name: string; round: string | null; groupName?: string | null; scheduledAt: Date | string | null; venue: string | null; status: string; bracketSlot?: number | null; participants: MatchParticipant[]; }
 interface Champion { position: number; section: string | null; team: { name: string } | null; participant: { name: string } | null; awardPoints: number; }
 interface Media { id: string; url: string; title: string | null; type: string; }
@@ -62,6 +62,18 @@ function computeGroupStandings(competition: Competition) {
   }
 
   return { groups, entities, stat, advanceCount, groupMatches };
+}
+
+// Format ms → "HH:MM:SS.mmm"
+function msToTimeStr(ms: number): string {
+  if (!isFinite(ms) || ms <= 0) return "";
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  const mil = ms % 1000;
+  const pad = (n: number, d = 2) => String(n).padStart(d, "0");
+  if (h > 0) return `${pad(h)}:${pad(m)}:${pad(s)}.${pad(mil, 3)}`;
+  return `${pad(m)}:${pad(s)}.${pad(mil, 3)}`;
 }
 
 export default function CompetitionDetailClient({ competition }: { competition: Competition }) {
@@ -556,12 +568,14 @@ export default function CompetitionDetailClient({ competition }: { competition: 
             {activeTab === "ranking" && competition.format === "TIME_TRIAL" && (() => {
               const cfg2 = competition.config ? JSON.parse(competition.config) : {};
               const sortOrder = cfg2.sortOrder || "DESC";
-              const unit = cfg2.scoreUnit || "nilai";
-              type RankEntry = { name: string; score: number | null; section: string | null };
+              const isTime = cfg2.scoreUnit === "waktu" || cfg2.sortOrder === "FASTEST" || cfg2.sortOrder === "ASC";
+              const unitLabel = isTime ? "Waktu" : (cfg2.scoreUnit || "Nilai");
+
+              type RankEntry = { name: string; score: number | null; timeResult?: string | null; section: string | null };
               const entries: RankEntry[] = [];
               for (const m of competition.matches) {
                 for (const p of m.participants) {
-                  entries.push({ name: p.team?.name || p.participant?.name || "?", score: p.score, section: p.team ? null : (p.participant as any)?.section });
+                  entries.push({ name: p.team?.name || p.participant?.name || "?", score: p.score, timeResult: p.timeResult, section: p.team ? null : (p.participant as any)?.section });
                 }
               }
               const sorted = entries.sort((a, b) => {
@@ -575,7 +589,7 @@ export default function CompetitionDetailClient({ competition }: { competition: 
                     <thead><tr className="border-b border-white/[0.06] bg-white/[0.02]">
                       <th className="text-center px-4 py-3 text-black text-xs font-semibold uppercase w-16">Rank</th>
                       <th className="text-left px-4 py-3 text-black text-xs font-semibold uppercase">Peserta</th>
-                      <th className="text-center px-4 py-3 text-indigo-400 text-xs font-semibold uppercase">{unit}</th>
+                      <th className="text-center px-4 py-3 text-indigo-400 text-xs font-semibold uppercase">{unitLabel}</th>
                     </tr></thead>
                     <tbody>
                       {sorted.length === 0 && <tr><td colSpan={3} className="px-4 py-10 text-center text-black">Belum ada hasil</td></tr>}
@@ -583,7 +597,7 @@ export default function CompetitionDetailClient({ competition }: { competition: 
                         <tr key={i} className={`border-b border-white/[0.04] ${ i < 3 ? "bg-white/[0.02]" : ""}`}>
                           <td className="text-center px-4 py-3">{medals[i] || <span className="text-black text-sm">#{i+1}</span>}</td>
                           <td className="px-4 py-3 text-black font-medium text-sm">{e.name}{e.section && <span className="text-xs text-black ml-2">({e.section})</span>}</td>
-                          <td className="text-center px-4 py-3 text-indigo-400 font-black stat-number">{e.score !== null ? e.score : "-"}</td>
+                          <td className="text-center px-4 py-3 text-indigo-400 font-black stat-number">{e.score !== null ? (isTime ? (e.timeResult || msToTimeStr(e.score)) : e.score) : "-"}</td>
                         </tr>
                       ))}
                     </tbody>
