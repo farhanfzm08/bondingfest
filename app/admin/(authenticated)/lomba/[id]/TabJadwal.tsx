@@ -5,7 +5,7 @@ import { formatDateTime } from "@/lib/utils";
 import { Pencil, Save, X, Calendar, MapPin, Clock } from "lucide-react";
 import { Competition } from "./page";
 
-export default function TabJadwal({ comp }: { comp: Competition }) {
+export default function TabJadwal({ comp, onScoreSaved }: { comp: Competition; onScoreSaved?: () => void }) {
   const [matches, setMatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -83,9 +83,10 @@ export default function TabJadwal({ comp }: { comp: Competition }) {
       });
 
       if (!res.ok) throw new Error();
-      toast.success("Jadwal dan skor berhasil disimpan!");
+      toast.success("✅ Jadwal dan skor berhasil disimpan!");
       setEditingId(null);
       fetchMatches();
+      onScoreSaved?.(); // Notify parent to refresh bracket
     } catch {
       toast.error("Gagal menyimpan");
     }

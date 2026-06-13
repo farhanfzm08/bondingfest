@@ -19,7 +19,14 @@ export default function TabPeserta({ comp }: { comp: Competition }) {
   const [allParticipants, setAllParticipants] = useState<Participant[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [addMode, setAddMode] = useState<"single"|"bulk">("single");
   const [saving, setSaving] = useState(false);
+
+  // Bulk add state (individual only)
+  const [bulkText, setBulkText] = useState("");
+  const [bulkSection, setBulkSection] = useState("");
+  const [bulkResults, setBulkResults] = useState<{name:string; found:boolean; id?:string; alreadyIn?:boolean}[]>([]);
+  const [bulkParsed, setBulkParsed] = useState(false);
 
   // Team form
   const [teamName, setTeamName] = useState("");
@@ -87,6 +94,41 @@ export default function TabPeserta({ comp }: { comp: Competition }) {
     toast.success("Dihapus"); fetchData();
   };
 
+  // Bulk: parse names against allParticipants list
+  const handleBulkParse = () => {
+    const lines = bulkText.split("\n").map(l => l.trim()).filter(Boolean);
+    const registeredIds = new Set(individuals.map(r => r.participant.id));
+    const results = lines.map(name => {
+      const found = allParticipants.find(p =>
+        p.name.toLowerCase() === name.toLowerCase() &&
+        (!bulkSection || p.section === bulkSection)
+      );
+      return { name, found: !!found, id: found?.id, alreadyIn: found ? registeredIds.has(found.id) : false };
+    });
+    setBulkResults(results);
+    setBulkParsed(true);
+  };
+
+  const handleBulkRegister = async () => {
+    const toAdd = bulkResults.filter(r => r.found && !r.alreadyIn && r.id);
+    if (toAdd.length === 0) { toast.error("Tidak ada peserta baru yang bisa ditambahkan"); return; }
+    setSaving(true);
+    let added = 0;
+    for (const r of toAdd) {
+      try {
+        const res = await fetch(`/api/competitions/${comp.id}/participants`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ participantId: r.id }),
+        });
+        if (res.ok) added++;
+      } catch {}
+    }
+    toast.success(`${added} peserta berhasil ditambahkan!`);
+    setBulkText(""); setBulkParsed(false); setBulkResults([]); setShowForm(false);
+    setSaving(false);
+    fetchData();
+  };
+
   const toggleWeight = (sec: string, val: number) => {
     setWeights(prev => ({...prev, [sec]: Math.max(0, Math.min(100, val))}));
   };
@@ -95,19 +137,109 @@ export default function TabPeserta({ comp }: { comp: Competition }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <p className="text-black text-sm font-semibold">
           {isTeam ? `${teams.length} tim terdaftar` : `${individuals.length} peserta terdaftar`}
         </p>
-        <button onClick={()=>setShowForm(!showForm)} className="btn-neon px-4 py-2 text-sm flex items-center gap-2">
-          <Plus className="w-4 h-4"/> Tambah {isTeam?"Tim":"Peserta"}
-        </button>
+        <div className="flex gap-2">
+          {!isTeam && (
+            <button onClick={() => { setShowForm(true); setAddMode("bulk"); }}
+              className="neu-btn neu-btn-white px-4 py-2 text-sm flex items-center gap-2">
+              ⚡ Bulk Add
+            </button>
+          )}
+          <button onClick={() => { setShowForm(!showForm); setAddMode("single"); setBulkParsed(false); setBulkText(""); setBulkResults([]); }}
+            className="btn-neon px-4 py-2 text-sm flex items-center gap-2">
+            <Plus className="w-4 h-4"/> Tambah {isTeam?"Tim":"Peserta"}
+          </button>
+        </div>
       </div>
 
       {/* Form */}
       {showForm && (
         <div className="neu-card p-5 space-y-4">
-          <h3 className="font-black text-[#1C1917]">➕ {isTeam?"Tim Baru":"Daftarkan Peserta"}</h3>
+          {/* Mode switcher for individual */}
+          {!isTeam && (
+            <div className="flex gap-1 p-1 bg-[#F5F5F4] rounded-[6px] border-2 border-[#1C1917] w-fit">
+              <button onClick={() => { setAddMode("single"); setBulkParsed(false); }}
+                className={`px-3 py-1 text-xs font-black rounded-[4px] transition-all ${addMode==="single"?"bg-[#0891B2] text-white":"text-[#1C1917] hover:bg-white"}`}>
+                ➕ Satu per Satu
+              </button>
+              <button onClick={() => setAddMode("bulk")}
+                className={`px-3 py-1 text-xs font-black rounded-[4px] transition-all ${addMode==="bulk"?"bg-[#0891B2] text-white":"text-[#1C1917] hover:bg-white"}`}>
+                ⚡ Bulk (Banyak Sekaligus)
+              </button>
+            </div>
+          )}
+
+          {/* Bulk add mode */}
+          {!isTeam && addMode === "bulk" && (
+            <div className="space-y-3">
+              <h3 className="font-black text-[#1C1917]">⚡ Tambah Banyak Peserta Sekaligus</h3>
+              <p className="text-xs text-gray-600">Tempel daftar nama peserta, satu per baris. Sistem akan mencocokkan dengan database peserta yang sudah terdaftar di event.</p>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-black text-[#1C1917] mb-1.5 uppercase tracking-wider">Filter Seksi (Opsional)</label>
+                  <select value={bulkSection} onChange={e=>setBulkSection(e.target.value)} className="neu-input text-sm">
+                    <option value="">-- Semua Seksi --</option>
+                    {sections.map(s=><option key={s.id} value={s.name}>{s.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-black text-[#1C1917] mb-1.5 uppercase tracking-wider">Daftar Nama (satu per baris)</label>
+                <textarea
+                  value={bulkText}
+                  onChange={e=>{setBulkText(e.target.value); setBulkParsed(false); setBulkResults([]);}}
+                  placeholder={`Budi Santoso\nSiti Rahayu\nAhmad Fauzi\n...`}
+                  rows={8}
+                  className="w-full border-[2.5px] border-[#1C1917] rounded-[6px] px-3 py-2 text-sm font-mono bg-white focus:outline-none focus:shadow-[2px_2px_0_#0891B2] resize-y"
+                />
+                <p className="text-xs text-gray-500 mt-1">{bulkText.split("\n").filter(l=>l.trim()).length} baris terdeteksi</p>
+              </div>
+
+              {/* Parse result */}
+              {bulkParsed && bulkResults.length > 0 && (
+                <div className="border-[2.5px] border-[#1C1917] rounded-[6px] overflow-hidden">
+                  <div className="bg-[#FFFBEB] px-4 py-2 flex items-center justify-between text-xs font-black text-[#1C1917] border-b-2 border-[#E7E5E4]">
+                    <span>Hasil Pencocokan: {bulkResults.filter(r=>r.found&&!r.alreadyIn).length} bisa ditambahkan</span>
+                    <span className="text-gray-500">{bulkResults.filter(r=>!r.found).length} tidak ditemukan · {bulkResults.filter(r=>r.alreadyIn).length} sudah terdaftar</span>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto divide-y divide-[#E7E5E4]">
+                    {bulkResults.map((r, i) => (
+                      <div key={i} className={`flex items-center gap-3 px-4 py-2 text-sm ${
+                        r.alreadyIn ? "bg-gray-50 text-gray-400" : r.found ? "bg-[#ECFDF5]" : "bg-[#FEF2F2]"
+                      }`}>
+                        <span className="text-base">{r.alreadyIn ? "✅" : r.found ? "🟢" : "🔴"}</span>
+                        <span className="font-semibold flex-1">{r.name}</span>
+                        <span className="text-xs text-gray-500">
+                          {r.alreadyIn ? "Sudah terdaftar" : r.found ? "Ditemukan" : "Tidak ditemukan di database"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2 border-t-2 border-[#E7E5E4]">
+                {!bulkParsed ? (
+                  <button onClick={handleBulkParse} disabled={!bulkText.trim()}
+                    className="btn-neon px-5 py-2 text-sm disabled:opacity-50">🔍 Cek & Cocokkan</button>
+                ) : (
+                  <button onClick={handleBulkRegister} disabled={saving || bulkResults.filter(r=>r.found&&!r.alreadyIn).length===0}
+                    className="btn-neon px-5 py-2 text-sm disabled:opacity-50">
+                    {saving ? "Mendaftarkan..." : `✅ Daftarkan ${bulkResults.filter(r=>r.found&&!r.alreadyIn).length} Peserta`}
+                  </button>
+                )}
+                <button onClick={()=>setShowForm(false)} className="neu-btn neu-btn-white px-5 py-2 text-sm">Batal</button>
+              </div>
+            </div>
+          )}
+
+          {/* Single add mode */}
+          {(isTeam || addMode === "single") && (
+            <>
+              <h3 className="font-black text-[#1C1917]">➕ {isTeam?"Tim Baru":"Daftarkan Peserta"}</h3>
 
           {isTeam && (
             <>
@@ -227,6 +359,8 @@ export default function TabPeserta({ comp }: { comp: Competition }) {
             </button>
             <button onClick={()=>setShowForm(false)} className="neu-btn neu-btn-white px-5 py-2 text-sm">Batal</button>
           </div>
+            </>
+          )}
         </div>
       )}
 

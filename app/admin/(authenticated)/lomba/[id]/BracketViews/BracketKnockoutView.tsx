@@ -1,21 +1,25 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
-import { Plus, Check, X, Pencil, Trash2, RefreshCw } from "lucide-react";
+import { Plus, Trash2, RefreshCw } from "lucide-react";
 import { Competition } from "../page";
 import { Match, TeamOrPart } from "../TabBracket";
 
 const ROUND_NAMES: Record<number, string> = { 2:"Final", 4:"Semifinal", 8:"Perempat Final", 16:"16 Besar", 32:"32 Besar", 64:"64 Besar" };
 
-export default function BracketKnockoutView({ comp, matches: initMatches, teams, onRefresh }: { comp:Competition; matches:Match[]; teams:TeamOrPart[]; onRefresh:()=>void }) {
+export default function BracketKnockoutView({ comp, matches, teams, onRefresh }: { comp:Competition; matches:Match[]; teams:TeamOrPart[]; onRefresh:()=>void }) {
   const cfg = comp.config ? JSON.parse(comp.config) : {};
   const bracketSize: number = cfg.bracketSize || 8;
   const thirdPlace: boolean = cfg.thirdPlace ?? true;
   const isTeam = comp.type==="TEAM"||comp.type==="DUO";
 
-  const [localMatches, setLocalMatches] = useState<Match[]>(initMatches);
+  // localMatches is kept in sync with prop, allows optimistic updates for team assignment
+  const [localMatches, setLocalMatches] = useState<Match[]>(matches);
   const [saving, setSaving] = useState(false);
   
+  // Sync when parent provides new data (after tab switch + refetch)
+  useEffect(() => { setLocalMatches(matches); }, [matches]);
+
   // Edit team mode
   const [editingTeam, setEditingTeam] = useState<{matchId:string, participantIndex:number, currentTeamId:string|null}|null>(null);
 

@@ -8,15 +8,14 @@ import TabInfo from "./TabInfo";
 import TabPeserta from "./TabPeserta";
 import TabBracket from "./TabBracket";
 import TabJuara from "./TabJuara";
-
 import TabJadwal from "./TabJadwal";
 
 const TABS = [
-  { key: "info",    label: "⚙️ Info & Konfigurasi", icon: Settings },
-  { key: "peserta", label: "👥 Peserta & Tim",       icon: Users },
-  { key: "bracket", label: "🏆 Bracket / Grup",      icon: Trophy },
-  { key: "jadwal",  label: "📅 Jadwal & Skor",       icon: Calendar },
-  { key: "juara",   label: "🏅 Tetapkan Juara",      icon: Trophy },
+  { key: "info",    label: "⚙️ Info & Konfigurasi" },
+  { key: "peserta", label: "👥 Peserta & Tim" },
+  { key: "bracket", label: "🏆 Bracket / Grup" },
+  { key: "jadwal",  label: "📅 Jadwal & Skor" },
+  { key: "juara",   label: "🏅 Tetapkan Juara" },
 ];
 
 export interface Competition {
@@ -32,6 +31,8 @@ export default function LombaDetailPage() {
   const [tab, setTab] = useState("info");
   const [comp, setComp] = useState<Competition | null>(null);
   const [loading, setLoading] = useState(true);
+  // bracketKey forces TabBracket to remount (and refetch) whenever incremented
+  const [bracketKey, setBracketKey] = useState(0);
 
   const fetchComp = useCallback(async () => {
     try {
@@ -53,7 +54,13 @@ export default function LombaDetailPage() {
 
   if (!comp) return null;
 
-  const tabLabel = { BRACKET: "🏆 Bracket", GROUP_STAGE: "📊 Tabel Grup", TIME_TRIAL: "⏱️ Ranking" }[comp.format] || "Jadwal";
+  const tabLabel = { BRACKET: "🏆 Bracket", GROUP_STAGE: "📊 Tabel Grup", TIME_TRIAL: "⏱️ Ranking" }[comp.format] || "Bracket";
+
+  const handleTabChange = (key: string) => {
+    // When switching back to bracket tab, force a fresh fetch
+    if (key === "bracket") setBracketKey(k => k + 1);
+    setTab(key);
+  };
 
   return (
     <div className="space-y-5">
@@ -73,7 +80,7 @@ export default function LombaDetailPage() {
         {TABS.map(t => {
           const label = t.key === "bracket" ? tabLabel : t.label;
           return (
-            <button key={t.key} onClick={() => setTab(t.key)}
+            <button key={t.key} onClick={() => handleTabChange(t.key)}
               className={`px-4 py-2.5 text-sm font-black rounded-t-[6px] border-[2.5px] border-b-0 transition-all duration-100 ${
                 tab === t.key
                   ? "bg-[#0891B2] text-white border-[#1C1917] -mb-[3px]"
@@ -89,8 +96,8 @@ export default function LombaDetailPage() {
       <div className="min-h-[400px]">
         {tab === "info"    && <TabInfo    comp={comp} onSaved={fetchComp} />}
         {tab === "peserta" && <TabPeserta comp={comp} />}
-        {tab === "bracket" && <TabBracket comp={comp} />}
-        {tab === "jadwal"  && <TabJadwal  comp={comp} />}
+        {tab === "bracket" && <TabBracket key={bracketKey} comp={comp} />}
+        {tab === "jadwal"  && <TabJadwal  comp={comp} onScoreSaved={() => setBracketKey(k => k + 1)} />}
         {tab === "juara"   && <TabJuara   comp={comp} onSaved={fetchComp} />}
       </div>
     </div>
