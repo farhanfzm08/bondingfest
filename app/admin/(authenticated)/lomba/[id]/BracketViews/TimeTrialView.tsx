@@ -16,6 +16,7 @@ export default function TimeTrialView({ comp, matches: initMatches, teams: initT
   const [showAdd, setShowAdd] = useState(false);
   const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [validating, setValidating] = useState(false);
 
   // Build ranking from local matches
   type Entry = { name:string; score:number|null; timeResult:string|null; matchId:string; partId:string; section?:string|null };
@@ -95,6 +96,22 @@ export default function TimeTrialView({ comp, matches: initMatches, teams: initT
     }
   };
 
+  const handleValidateWinners = async () => {
+    if (!confirm("Tetapkan Juara 1, 2, 3 berdasarkan hasil ini dan hitung ke klasemen seksi?")) return;
+    setValidating(true);
+    try {
+      const res = await fetch(`/api/competitions/${comp.id}/validate-winners`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      toast.success(data.message);
+      onRefresh();
+    } catch (e: any) {
+      toast.error(e.message || "Gagal menetapkan juara");
+    } finally {
+      setValidating(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -105,9 +122,16 @@ export default function TimeTrialView({ comp, matches: initMatches, teams: initT
             Time Trial · Satuan: {unit} · Urutan: {sortOrder==="DESC"?"Tertinggi Terbaik":"Terendah Terbaik"}
           </div>
         </div>
-        <button onClick={()=>setShowAdd(!showAdd)} className="btn-neon px-4 py-2 text-xs flex items-center gap-1.5">
-          <Plus className="w-3.5 h-3.5"/> Tambah Peserta
-        </button>
+        <div className="flex items-center gap-2">
+          {ranked.length > 0 && (
+            <button onClick={handleValidateWinners} disabled={validating} className="btn-neon bg-[#10B981] hover:bg-[#059669] px-4 py-2 text-xs flex items-center gap-1.5 shadow-[3px_3px_0_#1C1917]">
+              <Check className="w-3.5 h-3.5"/> {validating ? "Memproses..." : "Validasi Juara"}
+            </button>
+          )}
+          <button onClick={()=>setShowAdd(!showAdd)} className="btn-neon px-4 py-2 text-xs flex items-center gap-1.5">
+            <Plus className="w-3.5 h-3.5"/> Tambah Peserta
+          </button>
+        </div>
       </div>
 
       {/* Add entries */}

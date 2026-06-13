@@ -1,7 +1,7 @@
 "use client";
 import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, RefreshCw } from "lucide-react";
+import { Plus, Trash2, RefreshCw, Check } from "lucide-react";
 import { Competition } from "../page";
 import { Match, TeamOrPart } from "../TabBracket";
 
@@ -16,6 +16,7 @@ export default function BracketKnockoutView({ comp, matches, teams, onRefresh }:
   // localMatches is kept in sync with prop, allows optimistic updates for team assignment
   const [localMatches, setLocalMatches] = useState<Match[]>(matches);
   const [saving, setSaving] = useState(false);
+  const [validating, setValidating] = useState(false);
   
   // Sync when parent provides new data (after tab switch + refetch)
   useEffect(() => { setLocalMatches(matches); }, [matches]);
@@ -115,6 +116,22 @@ export default function BracketKnockoutView({ comp, matches, teams, onRefresh }:
       toast.success("Bagan dihapus");
     } catch { toast.error("Gagal menghapus"); onRefresh(); }
     finally { setSaving(false); }
+  };
+
+  const handleValidateWinners = async () => {
+    if (!confirm("Tetapkan Juara 1, 2, 3 berdasarkan hasil ini dan hitung ke klasemen seksi?")) return;
+    setValidating(true);
+    try {
+      const res = await fetch(`/api/competitions/${comp.id}/validate-winners`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      toast.success(data.message);
+      onRefresh();
+    } catch (e: any) {
+      toast.error(e.message || "Gagal menetapkan juara");
+    } finally {
+      setValidating(false);
+    }
   };
 
   if (localMatches.length === 0) {
@@ -217,10 +234,18 @@ export default function BracketKnockoutView({ comp, matches, teams, onRefresh }:
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <button onClick={handleDeleteAll} disabled={saving} className="neu-btn neu-btn-white text-xs px-4 py-2 text-red-600 border-red-600 shadow-[2px_2px_0_#DC2626] hover:shadow-[1px_1px_0_#DC2626]">
-          <Trash2 className="w-3.5 h-3.5 inline mr-1"/> Hapus Bagan
-        </button>
+      <div className="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-200">
+        <div className="text-xs font-bold text-gray-500">
+          💡 Klik (TBD) di bagan untuk isi tim. Atur skor di tab <strong>Jadwal & Skor</strong>.
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={handleValidateWinners} disabled={validating || localMatches.length === 0} className="neu-btn bg-[#10B981] text-white hover:bg-[#059669] text-xs px-4 py-2 border-[#1C1917] shadow-[2px_2px_0_#1C1917]">
+            <Check className="w-3.5 h-3.5 inline mr-1"/> {validating ? "Memproses..." : "Validasi Juara"}
+          </button>
+          <button onClick={handleDeleteAll} disabled={saving} className="neu-btn neu-btn-white text-xs px-4 py-2 text-red-600 border-red-600 shadow-[2px_2px_0_#DC2626] hover:shadow-[1px_1px_0_#DC2626]">
+            <Trash2 className="w-3.5 h-3.5 inline mr-1"/> Hapus Bagan
+          </button>
+        </div>
       </div>
 
       <div className="overflow-x-auto pb-8 pt-4">
@@ -238,10 +263,6 @@ export default function BracketKnockoutView({ comp, matches, teams, onRefresh }:
              </div>
           )}
         </div>
-      </div>
-      
-      <div className="text-xs font-bold text-gray-500 mt-4 bg-gray-50 p-3 rounded border border-gray-200">
-        💡 <strong>Tips:</strong> Klik nama tim (TBD) di dalam bagan untuk memasukkan/mengganti tim. <strong>Atur skor dan jadwal pertandingan melalui tab "Jadwal & Skor".</strong>
       </div>
     </div>
   );
