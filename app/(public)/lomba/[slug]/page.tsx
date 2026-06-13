@@ -34,10 +34,10 @@ export default async function CompetitionDetailPage({ params }: Props) {
         include: { participant: true },
       },
       matches: {
-        orderBy: { scheduledAt: "asc" },
+        orderBy: [{ bracketSlot: "asc" }, { groupName: "asc" }, { scheduledAt: "asc" }],
         include: {
           participants: {
-            include: { team: true, participant: true },
+            include: { team: { select: { id: true, name: true, section: true } }, participant: { select: { id: true, name: true, section: true } } },
           },
         },
       },

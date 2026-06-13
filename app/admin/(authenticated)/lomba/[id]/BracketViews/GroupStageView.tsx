@@ -42,11 +42,35 @@ export default function GroupStageView({ comp, matches: initMatches, teams: init
   const [addingMatch, setAddingMatch] = useState<string|null>(null);
   const [p1, setP1] = useState(""); const [p2, setP2] = useState("");
   const [savingMatch, setSavingMatch] = useState(false);
+  const [advancing, setAdvancing] = useState(false);
+  const [advanceResult, setAdvanceResult] = useState<{message:string; advancing:{name:string;group:string;rank:number}[]}|null>(null);
 
   const teamsInGroup = (g:string) => localTeams.filter(t => t.groupName === g);
   const matchesInGroup = (g:string) => localMatches.filter(m => m.groupName === g);
   const stat = calcStandings(localTeams, localMatches, config);
   const unassigned = localTeams.filter(t => !t.groupName);
+
+  // ── Advance to bracket ──────────────────────────────────────────────────────
+  const handleAdvanceToBracket = async () => {
+    const completedCount = localMatches.filter(m => m.status === "COMPLETED").length;
+    const totalCount = localMatches.length;
+    if (completedCount < totalCount && !confirm(`Baru ${completedCount} dari ${totalCount} pertandingan selesai. Lanjutkan ke bracket tetap?`)) return;
+    setAdvancing(true);
+    try {
+      const res = await fetch(`/api/competitions/${comp.id}/advance-to-bracket`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setAdvanceResult(data);
+      toast.success(data.message);
+      onRefresh(); // Refresh to show bracket
+    } catch (e: any) {
+      toast.error(e.message || "Gagal memindahkan ke bracket");
+    } finally {
+      setAdvancing(false);
+    }
+  };
 
   // ── Assign team/participant to group (optimistic) ──────────────────────────
   const handleAssignGroup = async (teamId: string, newGroup: string) => {
@@ -142,7 +166,47 @@ export default function GroupStageView({ comp, matches: initMatches, teams: init
 
   return (
     <div className="space-y-6">
+
+      {/* ── Advance to Bracket Banner ─────────────────────────────────────── */}
+      {advanceResult ? (
+        <div className="neu-card p-4 border-[#10B981] shadow-[4px_4px_0_#10B981] bg-[#ECFDF5]">
+          <div className="flex items-center gap-3 mb-3">
+            <span className="text-2xl">🏆</span>
+            <div>
+              <div className="font-black text-[#065F46]">Fase Grup Selesai!</div>
+              <div className="text-xs text-[#10B981] font-semibold">{advanceResult.message}</div>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {advanceResult.advancing.map((e, i) => (
+              <span key={i} className="px-2.5 py-1 text-xs font-black rounded-[4px] border-2 border-[#10B981] bg-white text-[#065F46]">
+                {e.group} #{e.rank} — {e.name}
+              </span>
+            ))}
+          </div>
+          <p className="text-xs text-[#10B981] mt-3 font-semibold">➜ Pindah ke tab Bracket untuk melihat dan mengatur sisa pertandingan</p>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between p-4 rounded-[8px] border-[2.5px] border-[#0891B2] bg-[#ECFEFF] shadow-[3px_3px_0_#0891B2]">
+          <div>
+            <div className="font-black text-[#0E7490] text-sm">Selesaikan Fase Grup → Masuk ke Bracket</div>
+            <div className="text-xs text-[#0891B2] mt-0.5">
+              {localMatches.filter(m => m.status === "COMPLETED").length}/{localMatches.length} pertandingan selesai ·
+              Top {config.advanceCount || 2} per grup akan masuk bracket
+            </div>
+          </div>
+          <button
+            onClick={handleAdvanceToBracket}
+            disabled={advancing || localTeams.filter(t => t.groupName).length === 0}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-black rounded-[6px] border-[2.5px] border-[#0891B2] bg-[#0891B2] text-white hover:bg-[#0E7490] disabled:opacity-50 shadow-[2px_2px_0_#1C1917] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+          >
+            {advancing ? "Memproses..." : "🚀 Lanjutkan ke Bracket"}
+          </button>
+        </div>
+      )}
+
       {/* Group Assignment Panel */}
+
       <div className="neu-card p-4">
         <div className="font-black text-sm text-[#1C1917] mb-3 flex items-center gap-2">
           🗂️ Atur Penempatan Grup

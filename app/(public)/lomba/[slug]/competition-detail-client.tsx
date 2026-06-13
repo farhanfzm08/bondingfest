@@ -8,9 +8,9 @@ import { cn, getStatusColor, getStatusLabel, formatDateTime, formatTime, getMeda
 
 // Types
 interface Participant { id: string; name: string; section: string | null; }
-interface Team { id: string; name: string; section: string | null; seedNumber: number | null; members: Array<{ participant: Participant; role: string }>; rankings: Array<{ position: number; points: number; wins: number; losses: number; draws: number }>; }
-interface MatchParticipant { score: number; result: string | null; team: { name: string } | null; participant: { name: string } | null; }
-interface Match { id: string; name: string; round: string | null; scheduledAt: Date | string | null; venue: string | null; status: string; bracketSlot?: number | null; participants: MatchParticipant[]; }
+interface Team { id: string; name: string; section: string | null; groupName?: string | null; seedNumber: number | null; members: Array<{ participant: Participant; role: string }>; rankings: Array<{ position: number; points: number; wins: number; losses: number; draws: number }>; }
+interface MatchParticipant { id?: string; score: number; result: string | null; team: { id?: string; name: string } | null; participant: { id?: string; name: string } | null; }
+interface Match { id: string; name: string; round: string | null; groupName?: string | null; scheduledAt: Date | string | null; venue: string | null; status: string; bracketSlot?: number | null; participants: MatchParticipant[]; }
 interface Champion { position: number; section: string | null; team: { name: string } | null; participant: { name: string } | null; awardPoints: number; }
 interface Media { id: string; url: string; title: string | null; type: string; }
 interface Announcement { id: string; title: string; content: string; type: string; publishedAt: Date | string; }
@@ -19,10 +19,49 @@ interface Competition {
   id: string; name: string; slug: string; description: string | null; status: string; type: string;
   format: string; config: string | null;
   category: string | null; venue: string | null; rules: string | null; bannerUrl: string | null;
-  teams: Team[]; compParticipants: Array<{ participant: Participant }>; matches: Match[];
+  teams: Team[]; compParticipants: Array<{ participant: Participant; groupName?: string | null }>; matches: Match[];
   rankings: Array<{ position: number; points: number; wins: number; losses: number; draws: number; team: { name: string } | null; participant: { name: string } | null; }>;
   champions: Champion[]; media: Media[]; announcements: Announcement[];
   _count: { teams: number; compParticipants: number; matches: number };
+}
+
+// Compute group standings from match data
+function computeGroupStandings(competition: Competition) {
+  const cfg = competition.config ? JSON.parse(competition.config) : {};
+  const numGroups = cfg.numGroups || 2;
+  const groups = Array.from({ length: numGroups }, (_, i) => `Grup ${String.fromCharCode(65 + i)}`);
+  const ptsWin = cfg.pointsWin ?? 3, ptsDraw = cfg.pointsDraw ?? 1, ptsLoss = cfg.pointsLoss ?? 0;
+  const advanceCount = cfg.advanceCount || 2;
+
+  // Build entity list with groupName
+  const isTeam = competition.type === "TEAM" || competition.type === "DUO";
+  type Entity = { id: string; name: string; groupName: string | null; section: string | null };
+  let entities: Entity[] = [];
+  if (isTeam) {
+    entities = competition.teams.map(t => ({ id: t.id, name: t.name, groupName: t.groupName ?? null, section: t.section }));
+  } else {
+    entities = competition.compParticipants.map(cp => ({ id: cp.participant.id, name: cp.participant.name, groupName: cp.groupName ?? null, section: cp.participant.section }));
+  }
+
+  // Compute stats
+  const stat: Record<string, { pts: number; wins: number; draws: number; losses: number; gf: number; ga: number; played: number }> = {};
+  for (const e of entities) stat[e.id] = { pts: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, played: 0 };
+
+  const groupMatches = competition.matches.filter(m => !m.bracketSlot);
+  for (const m of groupMatches) {
+    if (m.status !== "COMPLETED" || m.participants.length < 2) continue;
+    const [pA, pB] = m.participants;
+    const idA = (pA.team as any)?.id || (pA.participant as any)?.id || "";
+    const idB = (pB.team as any)?.id || (pB.participant as any)?.id || "";
+    if (!stat[idA] || !stat[idB]) continue;
+    stat[idA].gf += pA.score; stat[idA].ga += pB.score; stat[idA].played++;
+    stat[idB].gf += pB.score; stat[idB].ga += pA.score; stat[idB].played++;
+    if (pA.score > pB.score) { stat[idA].wins++; stat[idA].pts += ptsWin; stat[idB].losses++; stat[idB].pts += ptsLoss; }
+    else if (pB.score > pA.score) { stat[idB].wins++; stat[idB].pts += ptsWin; stat[idA].losses++; stat[idA].pts += ptsLoss; }
+    else { stat[idA].draws++; stat[idA].pts += ptsDraw; stat[idB].draws++; stat[idB].pts += ptsDraw; }
+  }
+
+  return { groups, entities, stat, advanceCount, groupMatches };
 }
 
 export default function CompetitionDetailClient({ competition }: { competition: Competition }) {
@@ -417,45 +456,141 @@ export default function CompetitionDetailClient({ competition }: { competition: 
               </div>
             )}
 
-            {/* FASE GRUP & RANKING */}
-            {(activeTab === "ranking" || activeTab === "fase-grup") && (
-              <div>
-                {competition.rankings.length === 0 ? (
-                  <div className="glass rounded-xl p-10 text-center text-black">Belum ada data ranking</div>
-                ) : (
-                  <div className="glass rounded-xl overflow-hidden">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-white/[0.06] bg-white/[0.02]">
-                          <th className="text-left px-5 py-3 text-black text-xs font-semibold uppercase tracking-wider">Rank</th>
-                          <th className="text-left px-5 py-3 text-black text-xs font-semibold uppercase tracking-wider">Nama</th>
-                          <th className="text-center px-4 py-3 text-black text-xs font-semibold uppercase tracking-wider hidden sm:table-cell">M</th>
-                          <th className="text-center px-4 py-3 text-black text-xs font-semibold uppercase tracking-wider hidden sm:table-cell">K</th>
-                          <th className="text-center px-4 py-3 text-black text-xs font-semibold uppercase tracking-wider hidden sm:table-cell">S</th>
-                          <th className="text-right px-5 py-3 text-black text-xs font-semibold uppercase tracking-wider">Poin</th>
+            {/* FASE GRUP */}
+            {activeTab === "fase-grup" && competition.format === "GROUP_STAGE" && (() => {
+              const { groups, entities, stat, advanceCount, groupMatches } = computeGroupStandings(competition);
+              return (
+                <div className="space-y-6">
+                  {groups.map(group => {
+                    const grpEntities = entities.filter(e => e.groupName === group).sort((a,b) => {
+                      const sa = stat[a.id] || { pts:0, gf:0, ga:0 };
+                      const sb = stat[b.id] || { pts:0, gf:0, ga:0 };
+                      if (sb.pts !== sa.pts) return sb.pts - sa.pts;
+                      return (sb.gf - sb.ga) - (sa.gf - sa.ga);
+                    });
+                    const grpMatches = groupMatches.filter(m => m.groupName === group);
+                    if (grpEntities.length === 0 && grpMatches.length === 0) return null;
+                    return (
+                      <div key={group} className="space-y-3">
+                        <div className="flex items-center gap-3">
+                          <span className="px-4 py-1.5 rounded-xl bg-indigo-500/20 text-indigo-300 font-black text-sm border border-indigo-500/30">{group}</span>
+                          <span className="text-black text-xs">{grpEntities.length} peserta · {grpMatches.length} laga</span>
+                        </div>
+
+                        {/* Standings */}
+                        {grpEntities.length > 0 && (
+                          <div className="glass rounded-xl overflow-hidden">
+                            <table className="w-full text-sm">
+                              <thead><tr className="border-b border-white/[0.06] bg-white/[0.02]">
+                                <th className="text-left px-4 py-2.5 text-black text-xs font-semibold uppercase">Peserta</th>
+                                <th className="text-center px-3 py-2.5 text-black text-xs font-semibold">Main</th>
+                                <th className="text-center px-3 py-2.5 text-green-400 text-xs font-semibold">M</th>
+                                <th className="text-center px-3 py-2.5 text-gray-400 text-xs font-semibold">S</th>
+                                <th className="text-center px-3 py-2.5 text-red-400 text-xs font-semibold">K</th>
+                                <th className="text-center px-3 py-2.5 text-black text-xs font-semibold">GD</th>
+                                <th className="text-right px-4 py-2.5 text-indigo-400 text-xs font-semibold">Poin</th>
+                              </tr></thead>
+                              <tbody>
+                                {grpEntities.map((e, i) => {
+                                  const s = stat[e.id] || { pts:0, wins:0, draws:0, losses:0, gf:0, ga:0, played:0 };
+                                  const isAdvancing = i < advanceCount;
+                                  return (
+                                    <tr key={e.id} className={`border-b border-white/[0.04] ${ isAdvancing ? "bg-indigo-500/10" : ""}`}>
+                                      <td className="px-4 py-2.5 flex items-center gap-2">
+                                        {isAdvancing && <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0"/>}
+                                        <span className="text-black font-medium">{e.name}</span>
+                                        {e.section && <span className="text-black text-xs hidden sm:block">({e.section})</span>}
+                                      </td>
+                                      <td className="text-center px-3 py-2.5 text-black text-xs">{s.played}</td>
+                                      <td className="text-center px-3 py-2.5 text-green-400 font-semibold">{s.wins}</td>
+                                      <td className="text-center px-3 py-2.5 text-gray-400">{s.draws}</td>
+                                      <td className="text-center px-3 py-2.5 text-red-400">{s.losses}</td>
+                                      <td className="text-center px-3 py-2.5 text-black text-xs">{s.gf}-{s.ga}</td>
+                                      <td className="text-right px-4 py-2.5 text-indigo-400 font-black stat-number">{s.pts}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+
+                        {/* Group Matches */}
+                        {grpMatches.length > 0 && (
+                          <div className="space-y-2">
+                            {grpMatches.map(m => {
+                              const p1 = m.participants[0]; const p2 = m.participants[1];
+                              const done = m.status === "COMPLETED";
+                              return (
+                                <div key={m.id} className="glass rounded-xl px-4 py-3 flex items-center gap-3">
+                                  <span className={`font-semibold text-sm flex-1 text-right ${p1?.result==="WIN"?"text-green-400":"text-black"}`}>
+                                    {p1?.team?.name || p1?.participant?.name || "TBD"}
+                                  </span>
+                                  <span className="px-3 py-1 rounded-lg bg-white/10 text-black font-black text-sm min-w-[60px] text-center stat-number">
+                                    {done ? `${p1?.score??0} - ${p2?.score??0}` : "vs"}
+                                  </span>
+                                  <span className={`font-semibold text-sm flex-1 ${p2?.result==="WIN"?"text-green-400":"text-black"}`}>
+                                    {p2?.team?.name || p2?.participant?.name || "TBD"}
+                                  </span>
+                                  {m.scheduledAt && <span className="text-xs text-black hidden sm:block">{formatDateTime(m.scheduledAt)}</span>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {grpEntities.length === 0 && grpMatches.length === 0 && (
+                          <div className="glass rounded-xl p-6 text-center text-black text-sm">Belum ada peserta di grup ini</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {entities.every(e => !e.groupName) && (
+                    <div className="glass rounded-xl p-10 text-center text-black">Belum ada peserta yang ditempatkan ke grup</div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* RANKING — Time Trial */}
+            {activeTab === "ranking" && competition.format === "TIME_TRIAL" && (() => {
+              const cfg2 = competition.config ? JSON.parse(competition.config) : {};
+              const sortOrder = cfg2.sortOrder || "DESC";
+              const unit = cfg2.scoreUnit || "nilai";
+              type RankEntry = { name: string; score: number | null; section: string | null };
+              const entries: RankEntry[] = [];
+              for (const m of competition.matches) {
+                for (const p of m.participants) {
+                  entries.push({ name: p.team?.name || p.participant?.name || "?", score: p.score, section: p.team ? null : (p.participant as any)?.section });
+                }
+              }
+              const sorted = entries.sort((a, b) => {
+                if (a.score === null) return 1; if (b.score === null) return -1;
+                return sortOrder === "DESC" ? b.score - a.score : a.score - b.score;
+              });
+              const medals = ["🥇", "🥈", "🥉"];
+              return (
+                <div className="glass rounded-xl overflow-hidden">
+                  <table className="w-full">
+                    <thead><tr className="border-b border-white/[0.06] bg-white/[0.02]">
+                      <th className="text-center px-4 py-3 text-black text-xs font-semibold uppercase w-16">Rank</th>
+                      <th className="text-left px-4 py-3 text-black text-xs font-semibold uppercase">Peserta</th>
+                      <th className="text-center px-4 py-3 text-indigo-400 text-xs font-semibold uppercase">{unit}</th>
+                    </tr></thead>
+                    <tbody>
+                      {sorted.length === 0 && <tr><td colSpan={3} className="px-4 py-10 text-center text-black">Belum ada hasil</td></tr>}
+                      {sorted.map((e, i) => (
+                        <tr key={i} className={`border-b border-white/[0.04] ${ i < 3 ? "bg-white/[0.02]" : ""}`}>
+                          <td className="text-center px-4 py-3">{medals[i] || <span className="text-black text-sm">#{i+1}</span>}</td>
+                          <td className="px-4 py-3 text-black font-medium text-sm">{e.name}{e.section && <span className="text-xs text-black ml-2">({e.section})</span>}</td>
+                          <td className="text-center px-4 py-3 text-indigo-400 font-black stat-number">{e.score !== null ? e.score : "-"}</td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {competition.rankings.map((rank, i) => (
-                          <tr key={i} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
-                            <td className="px-5 py-3">
-                              {rank.position <= 3 ? getMedalEmoji(rank.position) : <span className="text-black text-sm">#{rank.position}</span>}
-                            </td>
-                            <td className="px-5 py-3 text-black font-medium text-sm">
-                              {rank.team?.name || rank.participant?.name}
-                            </td>
-                            <td className="px-4 py-3 text-center text-green-400 hidden sm:table-cell">{rank.wins}</td>
-                            <td className="px-4 py-3 text-center text-red-400 hidden sm:table-cell">{rank.losses}</td>
-                            <td className="px-4 py-3 text-center text-black hidden sm:table-cell">{rank.draws}</td>
-                            <td className="px-5 py-3 text-right text-indigo-400 font-bold stat-number">{rank.points}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
 
             {/* INFO */}
             {activeTab === "info" && (
