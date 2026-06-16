@@ -493,6 +493,7 @@ export default function CompetitionDetailClient({ competition: initialData }: { 
                     </div>
                   );
                 })()}
+                </div>
               </div>
             )}
 
