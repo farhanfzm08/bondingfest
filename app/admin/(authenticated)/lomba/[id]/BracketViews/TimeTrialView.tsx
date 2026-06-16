@@ -2,8 +2,8 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Check, X, Timer } from "lucide-react";
-import { Competition } from "../page";
 import { Match, TeamOrPart } from "../TabBracket";
+import { createMatch, deleteMatch, validateWinners } from "@/app/actions/match";
 
 export default function TimeTrialView({ comp, matches: initMatches, teams: initTeams, onRefresh }: { comp:Competition; matches:Match[]; teams:TeamOrPart[]; onRefresh:()=>void }) {
   const cfg = comp.config ? JSON.parse(comp.config) : {};
@@ -70,12 +70,17 @@ export default function TimeTrialView({ comp, matches: initMatches, teams: initT
     setShowAdd(false); setSelectedTeams([]);
 
     try {
-      const res = await fetch("/api/matches", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ competitionId:comp.id, name:`Time Trial: ${names}`, round:"Time Trial", stage:"REGULAR", participants:parts }),
+      const res = await createMatch({
+        competitionId: comp.id,
+        name: `Time Trial: ${names}`,
+        round: "Time Trial",
+        stage: "REGULAR",
+        bracketSlot: 0, // 0 or null equivalent for time trial
+        participants: parts
       });
-      const real = await res.json();
-      setLocalMatches(ms => ms.map(m => m.id === tempId ? real : m));
+      if (!res.success) throw new Error(res.error);
+      
+      setLocalMatches(ms => ms.map(m => m.id === tempId ? (res.match as unknown as Match) : m));
       toast.success("Peserta ditambahkan ke ranking!");
     } catch {
       setLocalMatches(ms => ms.filter(m => m.id !== tempId));
@@ -89,7 +94,8 @@ export default function TimeTrialView({ comp, matches: initMatches, teams: initT
     if (!confirm("Hapus dari ranking?")) return;
     setLocalMatches(ms => ms.filter(m => m.id !== matchId));
     try {
-      await fetch(`/api/matches/${matchId}`,{method:"DELETE"});
+      const res = await deleteMatch(matchId);
+      if (!res.success) throw new Error(res.error);
       toast.success("Dihapus");
     } catch {
       toast.error("Gagal menghapus"); onRefresh();
@@ -100,10 +106,9 @@ export default function TimeTrialView({ comp, matches: initMatches, teams: initT
     if (!confirm("Tetapkan Juara 1, 2, 3 berdasarkan hasil ini dan hitung ke klasemen seksi?")) return;
     setValidating(true);
     try {
-      const res = await fetch(`/api/competitions/${comp.id}/validate-winners`, { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      toast.success(data.message);
+      const res = await validateWinners(comp.id);
+      if (res.error) throw new Error(res.error);
+      toast.success(res.message || "Juara berhasil divalidasi!");
       onRefresh();
     } catch (e: any) {
       toast.error(e.message || "Gagal menetapkan juara");

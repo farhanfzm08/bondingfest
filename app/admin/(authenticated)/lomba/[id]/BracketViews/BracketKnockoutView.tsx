@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, RefreshCw, Check } from "lucide-react";
 import { Competition } from "../page";
 import { Match, TeamOrPart } from "../TabBracket";
+import { createMatch, updateMatchParticipants, deleteMatch, validateWinners } from "@/app/actions/match";
 
 const ROUND_NAMES: Record<number, string> = { 2:"Final", 4:"Semifinal", 8:"Perempat Final", 16:"16 Besar", 32:"32 Besar", 64:"64 Besar" };
 
@@ -39,32 +40,24 @@ export default function BracketKnockoutView({ comp, matches, teams, onRefresh }:
         const matchCount = rSize / 2;
         const roundName = ROUND_NAMES[rSize] || `${rSize} Besar`;
         for (let i = 0; i < matchCount; i++) {
-          await fetch("/api/matches", {
-            method: "POST",
-            headers: {"Content-Type":"application/json"},
-            body: JSON.stringify({
-              competitionId: comp.id,
-              name: `${roundName} - Match ${i+1}`,
-              round: roundName,
-              stage: "KNOCKOUT",
-              bracketSlot: slot++,
-              participants: [{ teamId: null, participantId: null }, { teamId: null, participantId: null }]
-            })
+          await createMatch({
+            competitionId: comp.id,
+            name: `${roundName} - Match ${i+1}`,
+            round: roundName,
+            stage: "KNOCKOUT",
+            bracketSlot: slot++,
+            participants: [{ teamId: null, participantId: null }, { teamId: null, participantId: null }]
           });
         }
       }
       if (thirdPlace) {
-        await fetch("/api/matches", {
-          method: "POST",
-          headers: {"Content-Type":"application/json"},
-          body: JSON.stringify({
-            competitionId: comp.id,
-            name: "Perebutan Juara 3",
-            round: "Perebutan Juara 3",
-            stage: "KNOCKOUT",
-            bracketSlot: slot++,
-            participants: [{ teamId: null, participantId: null }, { teamId: null, participantId: null }]
-          })
+        await createMatch({
+          competitionId: comp.id,
+          name: "Perebutan Juara 3",
+          round: "Perebutan Juara 3",
+          stage: "KNOCKOUT",
+          bracketSlot: slot++,
+          participants: [{ teamId: null, participantId: null }, { teamId: null, participantId: null }]
         });
       }
       toast.success("Bagan berhasil dibuat!");
@@ -98,11 +91,8 @@ export default function BracketKnockoutView({ comp, matches, teams, onRefresh }:
       const payloadParticipants = [
         { id: participantId, [isTeam ? "teamId" : "participantId"]: newTeamId || null }
       ];
-      await fetch(`/api/matches/${matchId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ participants: payloadParticipants })
-      });
+      const res = await updateMatchParticipants(matchId, payloadParticipants);
+      if (!res.success) throw new Error(res.error);
       toast.success("Tim diperbarui!");
     } catch { toast.error("Gagal memperbarui"); onRefresh(); }
   };
@@ -111,7 +101,9 @@ export default function BracketKnockoutView({ comp, matches, teams, onRefresh }:
     if (!confirm("Hapus seluruh bagan? Ini akan menghapus semua pertandingan.")) return;
     setSaving(true);
     try {
-      for (const m of localMatches) await fetch(`/api/matches/${m.id}`, { method: "DELETE" });
+      for (const m of localMatches) {
+        await deleteMatch(m.id);
+      }
       setLocalMatches([]);
       toast.success("Bagan dihapus");
     } catch { toast.error("Gagal menghapus"); onRefresh(); }
@@ -122,10 +114,9 @@ export default function BracketKnockoutView({ comp, matches, teams, onRefresh }:
     if (!confirm("Tetapkan Juara 1, 2, 3 berdasarkan hasil ini dan hitung ke klasemen seksi?")) return;
     setValidating(true);
     try {
-      const res = await fetch(`/api/competitions/${comp.id}/validate-winners`, { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      toast.success(data.message);
+      const res = await validateWinners(comp.id);
+      if (res.error) throw new Error(res.error);
+      toast.success(res.message || "Juara berhasil divalidasi!");
       onRefresh();
     } catch (e: any) {
       toast.error(e.message || "Gagal menetapkan juara");

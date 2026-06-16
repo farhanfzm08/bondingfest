@@ -76,7 +76,18 @@ function msToTimeStr(ms: number): string {
   return `${pad(m)}:${pad(s)}.${pad(mil, 3)}`;
 }
 
-export default function CompetitionDetailClient({ competition }: { competition: Competition }) {
+import useSWR from "swr";
+
+export default function CompetitionDetailClient({ competition: initialData }: { competition: Competition }) {
+  const { data: competition } = useSWR(
+    `/api/competitions/${initialData.slug}`,
+    (url) => fetch(url).then(r => r.json()),
+    {
+      fallbackData: initialData,
+      refreshInterval: 10000, // Poll every 10s for live updates
+    }
+  );
+
   const [activeTab, setActiveTab] = useState("overview");
 
   const baseTabs = [
@@ -159,19 +170,21 @@ export default function CompetitionDetailClient({ competition }: { competition: 
         {/* Tabs */}
         <div className="flex gap-1 overflow-x-auto pb-2 mb-8 scrollbar-hide">
           {tabs.map(({ id, label, icon: Icon }) => (
-            <button
+            <motion.button
               key={id}
               onClick={() => setActiveTab(id)}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               className={cn(
-                "flex items-center gap-2 px-4 py-2.5 rounded-[8px] text-sm font-black whitespace-nowrap transition-all flex-shrink-0 border-2 border-[#1C1917]",
+                "flex items-center gap-2 px-4 py-2.5 rounded-[8px] text-sm font-black whitespace-nowrap transition-colors flex-shrink-0 border-2 border-[#1C1917]",
                 activeTab === id
-                  ? "bg-indigo-600 text-white shadow-[3px_3px_0_#1C1917] translate-x-[-2px] translate-y-[-2px]"
-                  : "bg-white text-[#1C1917] hover:bg-indigo-50"
+                  ? "bg-indigo-600 text-white shadow-[3px_3px_0_#1C1917]"
+                  : "bg-white text-[#1C1917] hover:bg-indigo-50 hover:shadow-[3px_3px_0_#1C1917]"
               )}
             >
               <Icon className="w-4 h-4" />
               {label}
-            </button>
+            </motion.button>
           ))}
         </div>
 
@@ -331,17 +344,25 @@ export default function CompetitionDetailClient({ competition }: { competition: 
                     const isOngoing = match.status === "ONGOING";
 
                     return (
-                      <div key={match.id} className={cn(
-                        "glass rounded-xl p-5 border",
-                        isOngoing ? "border-green-500/30" : isCompleted ? "border-white/10" : "border-white/[0.06]"
-                      )}>
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        whileHover={{ scale: 1.02 }}
+                        key={match.id} 
+                        className={cn(
+                          "glass rounded-xl p-5 border cursor-default",
+                          isOngoing ? "border-green-500/30 shadow-[4px_4px_0_#10B981]" : 
+                          isCompleted ? "border-[#1C1917] shadow-[4px_4px_0_#1C1917]" : 
+                          "border-white/[0.06]"
+                        )}
+                      >
                         <div className="flex items-center gap-3 mb-4">
-                          <span className="text-black text-xs">{match.round}</span>
+                          <span className="text-black text-xs font-bold bg-white/50 px-2 py-1 rounded-md">{match.round}</span>
                           <span className={cn(
-                            "text-xs px-2 py-0.5 rounded-full font-medium",
-                            isCompleted ? "bg-gray-500/20 text-black" :
-                            isOngoing ? "bg-green-500/20 text-green-400" :
-                            "bg-blue-500/20 text-blue-400"
+                            "text-xs px-2 py-0.5 rounded-full font-bold",
+                            isCompleted ? "bg-[#1C1917] text-white" :
+                            isOngoing ? "bg-green-500 text-white animate-pulse" :
+                            "bg-blue-500/20 text-blue-800"
                           )}>
                             {getStatusLabel(match.status)}
                           </span>
@@ -349,21 +370,21 @@ export default function CompetitionDetailClient({ competition }: { competition: 
                         </div>
 
                         <div className="flex items-center gap-4">
-                          <div className="flex-1 text-right text-black font-semibold text-sm">
+                          <div className="flex-1 text-right text-black font-black text-sm md:text-base">
                             {p1?.team?.name || p1?.participant?.name || "TBD"}
                           </div>
                           <div className={cn(
-                            "min-w-[80px] text-center rounded-xl py-2 px-3 text-lg font-black stat-number",
-                            isCompleted ? "bg-white/10" : "glass"
+                            "min-w-[80px] text-center rounded-xl py-2 px-3 text-lg font-black stat-number border-2 border-[#1C1917]",
+                            isCompleted ? "bg-white text-[#1C1917]" : "bg-[#1C1917] text-white"
                           )}>
                             {isCompleted || isOngoing ? `${p1?.score ?? 0} - ${p2?.score ?? 0}` : "VS"}
                           </div>
-                          <div className="flex-1 text-black font-semibold text-sm">
+                          <div className="flex-1 text-black font-black text-sm md:text-base">
                             {p2?.team?.name || p2?.participant?.name || "TBD"}
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-center gap-4 mt-3 text-xs text-black">
+                        <div className="flex items-center justify-center gap-4 mt-4 text-xs font-bold text-gray-600 bg-white/40 py-2 rounded-lg">
                           {match.scheduledAt && (
                             <span className="flex items-center gap-1">
                               <Clock className="w-3 h-3" />
@@ -377,7 +398,7 @@ export default function CompetitionDetailClient({ competition }: { competition: 
                             </span>
                           )}
                         </div>
-                      </div>
+                      </motion.div>
                     );
                   })
                 )}
@@ -386,7 +407,11 @@ export default function CompetitionDetailClient({ competition }: { competition: 
 
             {/* BRACKET */}
             {activeTab === "bracket" && ["BRACKET", "GROUP_STAGE"].includes(competition.format) && (
-              <div className="glass rounded-xl p-5 overflow-x-auto">
+              <div className="glass rounded-xl p-5 relative">
+                <div className="md:hidden text-xs text-black font-bold mb-3 flex items-center gap-2 bg-white/40 p-2 rounded-lg">
+                  <span>👉 Geser untuk melihat seluruh bagan</span>
+                </div>
+                <div className="overflow-x-auto pb-4 pt-2 cursor-grab active:cursor-grabbing">
                 {(() => {
                   const cfg = competition.config ? JSON.parse(competition.config) : {};
                   const bracketSize: number = cfg.bracketSize || 8;
@@ -408,16 +433,19 @@ export default function CompetitionDetailClient({ competition }: { competition: 
                     const nB = pB?.team?.name || pB?.participant?.name || "TBD";
 
                     return (
-                      <div className={`w-[180px] rounded-[6px] border-[2px] border-[#1C1917] bg-white overflow-hidden ${m.status==="COMPLETED"?"shadow-[2px_2px_0_#10B981]":"shadow-[2px_2px_0_#D4D0CA]"} relative z-10`}>
-                        <div className={`flex items-center justify-between px-2 py-1.5 border-b-2 border-[#E7E5E4] ${pA?.result==="WIN"?"bg-[#ECFDF5]":""}`}>
-                          <span className={`text-[11px] font-black truncate max-w-[120px] ${pA?.result==="WIN"?"text-[#10B981]":pA?.result==="LOSE"?"text-black":"text-[#1C1917]"}`}>{nA}</span>
-                          <span className={`text-xs font-black stat-number ${pA?.result==="WIN"?"text-[#10B981]":"text-[#1C1917]"}`}>{m.status==="COMPLETED" ? pA?.score??0 : "-"}</span>
+                      <motion.div 
+                        whileHover={{ scale: 1.05, zIndex: 20 }}
+                        className={`w-[180px] rounded-[6px] border-[2px] border-[#1C1917] bg-white overflow-hidden ${m.status==="COMPLETED"?"shadow-[4px_4px_0_#10B981]":"shadow-[4px_4px_0_#1C1917]"} relative z-10 transition-shadow duration-200`}
+                      >
+                        <div className={`flex items-center justify-between px-2 py-1.5 border-b-2 border-[#1C1917] ${pA?.result==="WIN"?"bg-[#10B981] text-white":""}`}>
+                          <span className={`text-[11px] font-black truncate max-w-[120px] ${pA?.result==="WIN"?"text-white":pA?.result==="LOSE"?"text-gray-400 line-through":"text-[#1C1917]"}`}>{nA}</span>
+                          <span className={`text-xs font-black stat-number ${pA?.result==="WIN"?"text-white":"text-[#1C1917]"}`}>{m.status==="COMPLETED" ? pA?.score??0 : "-"}</span>
                         </div>
-                        <div className={`flex items-center justify-between px-2 py-1.5 ${pB?.result==="WIN"?"bg-[#ECFDF5]":""}`}>
-                          <span className={`text-[11px] font-black truncate max-w-[120px] ${pB?.result==="WIN"?"text-[#10B981]":pB?.result==="LOSE"?"text-black":"text-[#1C1917]"}`}>{nB}</span>
-                          <span className={`text-xs font-black stat-number ${pB?.result==="WIN"?"text-[#10B981]":"text-[#1C1917]"}`}>{m.status==="COMPLETED" ? pB?.score??0 : "-"}</span>
+                        <div className={`flex items-center justify-between px-2 py-1.5 ${pB?.result==="WIN"?"bg-[#10B981] text-white":""}`}>
+                          <span className={`text-[11px] font-black truncate max-w-[120px] ${pB?.result==="WIN"?"text-white":pB?.result==="LOSE"?"text-gray-400 line-through":"text-[#1C1917]"}`}>{nB}</span>
+                          <span className={`text-xs font-black stat-number ${pB?.result==="WIN"?"text-white":"text-[#1C1917]"}`}>{m.status==="COMPLETED" ? pB?.score??0 : "-"}</span>
                         </div>
-                      </div>
+                      </motion.div>
                     );
                   };
 
