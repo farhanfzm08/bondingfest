@@ -93,8 +93,11 @@ export default function CompetitionDetailClient({ competition: initialData }: { 
   const baseTabs = [
     { id: "overview", label: "Overview", icon: Trophy },
     { id: "peserta", label: "Peserta", icon: Users },
-    { id: "jadwal", label: "Jadwal & Hasil", icon: Calendar },
   ];
+
+  if (competition.format !== "TIME_TRIAL") {
+    baseTabs.push({ id: "jadwal", label: "Jadwal & Hasil", icon: Calendar });
+  }
 
   let formatTabs: any[] = [];
   if (competition.format === "BRACKET") {
@@ -212,6 +215,14 @@ export default function CompetitionDetailClient({ competition: initialData }: { 
                 <div className="glass rounded-xl p-6">
                   <h2 className="text-black font-bold mb-4">Detail Event</h2>
                   <div className="space-y-3">
+                    {competition.matches[0]?.scheduledAt && (
+                      <div className="flex items-center gap-3 text-sm">
+                        <Calendar className="w-4 h-4 text-emerald-400" />
+                        <span className="text-black font-semibold">
+                          Waktu: {formatDateTime(competition.matches[0].scheduledAt)}
+                        </span>
+                      </div>
+                    )}
                     {competition.venue && (
                       <div className="flex items-center gap-3 text-sm">
                         <MapPin className="w-4 h-4 text-indigo-400" />
